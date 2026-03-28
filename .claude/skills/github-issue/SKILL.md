@@ -9,16 +9,18 @@ Creates a new issue in the `luc-tielen/nexus` GitHub repository using the `gh` C
 
 ## Steps
 
-1. Identify the issue title and body from what the user said.
-   - If they gave enough detail, use it directly.
-   - If only a brief description was given, use it as the title and leave the body minimal.
-2. Determine the appropriate label(s) if obvious from context (e.g. "bug", "enhancement", "documentation"). Skip labels if unclear — don't guess.
-3. Run:
+1. Identify the issue title from what the user said — keep it concise.
+2. Write the issue body:
+   - Start with the user's exact description.
+   - If you have relevant context from the current conversation (e.g. related code, recent changes, error messages, file paths, or background on the feature), expand the body with that information to make the issue more useful. Structure it clearly — e.g. **Description**, **Context**, **Steps to reproduce**, **Expected behavior** — only including sections that have real content.
+   - If you have no additional context beyond what the user said, keep the body minimal. Don't pad it with generic filler.
+3. Determine the appropriate label(s) if obvious from context (e.g. "bug", "enhancement", "documentation"). Skip labels if unclear — don't guess.
+4. Run:
    ```bash
    gh issue create --repo luc-tielen/nexus --title "<title>" --body "<body>"
    ```
    Add `--label <label>` for each label if applicable.
-4. Report the issue URL back to the user.
+5. Report the issue URL back to the user.
 
 ## Example
 
