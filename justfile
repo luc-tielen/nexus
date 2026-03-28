@@ -1,6 +1,9 @@
 build:
     go build ./...
 
+start *args: build
+    ./nexus {{args}}
+
 test:
     go test ./...
 
