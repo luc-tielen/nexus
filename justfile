@@ -1,8 +1,8 @@
 build:
     go build ./...
 
-start *args: build
-    ./nexus {{args}}
+start *args:
+    go run ./cmd/nexus/main.go {{args}}
 
 test:
     go test ./...
