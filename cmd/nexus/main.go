@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"syscall"
@@ -9,13 +10,13 @@ import (
 func main() {
 	claude, err := exec.LookPath("claude")
 	if err != nil {
-		os.Stderr.WriteString("nexus: claude not found in PATH\n")
+		fmt.Fprintln(os.Stderr, "nexus: claude not found in PATH")
 		os.Exit(1)
 	}
 
 	args := append([]string{"claude"}, os.Args[1:]...)
 	if err := syscall.Exec(claude, args, os.Environ()); err != nil {
-		os.Stderr.WriteString("nexus: " + err.Error() + "\n")
+		fmt.Fprintln(os.Stderr, "nexus:", err)
 		os.Exit(1)
 	}
 }
