@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "output=$(cd \"$CLAUDE_PROJECT_DIR\" && just check 2>&1); exit_code=$?; if [ $exit_code -ne 0 ]; then jq -n --arg reason \"just check failed. Please fix the issues:\\n$output\" '{\"decision\": \"block\", \"reason\": $reason}'; fi",
+            "timeout": 120,
+            "statusMessage": "Running just check"
+          }
+        ]
+      }
+    ]
+  }
+}
