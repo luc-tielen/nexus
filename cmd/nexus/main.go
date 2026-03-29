@@ -68,6 +68,15 @@ func (w *wrapper) trackInput(b []byte) {
 	}
 }
 
+// doInject writes a clear-line escape, the message, and then replays any saved
+// keystrokes into dst (the pty master).
+func doInject(dst io.Writer, msg string, saved []byte) {
+	_, _ = fmt.Fprintf(dst, "\r\x1b[2K%s\n", msg)
+	if len(saved) > 0 {
+		_, _ = dst.Write(saved)
+	}
+}
+
 func (w *wrapper) run(ctx context.Context, path string, args []string) error {
 	cmd := exec.Command(path, args...)
 
@@ -134,10 +143,9 @@ func (w *wrapper) run(ctx context.Context, path string, args []string) error {
 				w.lineBuf = w.lineBuf[:0]
 				w.mu.Unlock()
 
-				_, _ = ptm.WriteString("\r\x1b[2K" + msg + "\n")
+				doInject(ptm, msg, saved)
 
 				if len(saved) > 0 {
-					_, _ = ptm.Write(saved)
 					w.mu.Lock()
 					w.lineBuf = saved
 					w.mu.Unlock()
