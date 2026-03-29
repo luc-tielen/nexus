@@ -41,16 +41,16 @@ func (w *wrapper) trackInput(b []byte) {
 	defer w.mu.Unlock()
 	for i := 0; i < len(b); {
 		ch := b[i]
-		switch {
-		case ch == '\r' || ch == '\n':
+		switch ch {
+		case '\r', '\n':
 			w.lineBuf = w.lineBuf[:0]
 			i++
-		case ch == 0x7f || ch == 0x08: // DEL / BS
+		case 0x7f, 0x08: // DEL / BS
 			if len(w.lineBuf) > 0 {
 				w.lineBuf = w.lineBuf[:len(w.lineBuf)-1]
 			}
 			i++
-		case ch == 0x1b: // ESC sequence — consume through the final byte
+		case 0x1b: // ESC sequence — consume through the final byte
 			end := i + 1
 			for end < len(b) && (b[end] < 0x40 || b[end] > 0x7e) {
 				end++
@@ -84,7 +84,7 @@ func (w *wrapper) run(ctx context.Context, path string, args []string) error {
 		return err
 	}
 	w.ptm = ptm
-	defer ptm.Close()
+	defer func() { _ = ptm.Close() }()
 
 	// Put the real terminal in raw mode so we see every keystroke.
 	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
