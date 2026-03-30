@@ -38,8 +38,10 @@ func main() {
 	defer cancel()
 
 	w := newWrapper()
+	s := newScheduler(w.Inject)
+	defer s.Stop()
 
-	shutdown, err := startMCPServer(ctx, w)
+	shutdown, err := startMCPServer(ctx, w, s)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "nexus: MCP server failed to start:", err)
 		os.Exit(1)

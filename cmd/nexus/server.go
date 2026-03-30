@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -13,12 +15,10 @@ const mcpAddr = ":" + mcpPort
 const mcpBaseURL = "http://localhost:" + mcpPort
 
 // newMCPServer creates the MCP server and registers all tools.
-// The wrapper is passed so tool handlers can interact with the running Claude
-// session (e.g. via w.Inject).
-func newMCPServer(w *wrapper) *mcpserver.SSEServer {
-	s := mcpserver.NewMCPServer("nexus", "0.1.0")
+func newMCPServer(w *wrapper, s *scheduler) *mcpserver.SSEServer {
+	srv := mcpserver.NewMCPServer("nexus", "0.1.0")
 
-	s.AddTool(
+	srv.AddTool(
 		mcp.NewTool("get_time",
 			mcp.WithDescription("Returns the current time on the host machine."),
 		),
@@ -27,13 +27,84 @@ func newMCPServer(w *wrapper) *mcpserver.SSEServer {
 		},
 	)
 
-	return mcpserver.NewSSEServer(s, mcpserver.WithBaseURL(mcpBaseURL))
+	srv.AddTool(
+		mcp.NewTool("schedule_task",
+			mcp.WithDescription("Schedule a recurring task using a cron expression. "+
+				"Accepts standard 5-field expressions ('*/5 * * * *') or descriptors "+
+				"like '@hourly' and '@every 30m'. Returns the task ID."),
+			mcp.WithString("schedule",
+				mcp.Required(),
+				mcp.Description("Cron expression, e.g. '0 9 * * 1-5' for weekdays at 9am."),
+			),
+			mcp.WithString("message",
+				mcp.Required(),
+				mcp.Description("Message to inject into Claude when the schedule fires."),
+			),
+		),
+		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			schedule := req.GetString("schedule", "")
+			message := req.GetString("message", "")
+			if schedule == "" {
+				return nil, fmt.Errorf("schedule is required")
+			}
+			if message == "" {
+				return nil, fmt.Errorf("message is required")
+			}
+			id, err := s.Add(schedule, message)
+			if err != nil {
+				return nil, err
+			}
+			return mcp.NewToolResultText(fmt.Sprintf("scheduled task %s", id)), nil
+		},
+	)
+
+	srv.AddTool(
+		mcp.NewTool("list_tasks",
+			mcp.WithDescription("List all currently scheduled tasks."),
+		),
+		func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			jobs := s.List()
+			type row struct {
+				ID       string `json:"id"`
+				Schedule string `json:"schedule"`
+				Message  string `json:"message"`
+			}
+			rows := make([]row, len(jobs))
+			for i, j := range jobs {
+				rows[i] = row{ID: j.ID, Schedule: j.Schedule, Message: j.Message}
+			}
+			out, _ := json.Marshal(rows)
+			return mcp.NewToolResultText(string(out)), nil
+		},
+	)
+
+	srv.AddTool(
+		mcp.NewTool("delete_task",
+			mcp.WithDescription("Delete a scheduled task by ID."),
+			mcp.WithString("id",
+				mcp.Required(),
+				mcp.Description("Task ID returned by schedule_task."),
+			),
+		),
+		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			id := req.GetString("id", "")
+			if id == "" {
+				return nil, fmt.Errorf("id is required")
+			}
+			if !s.Delete(id) {
+				return nil, fmt.Errorf("task %s not found", id)
+			}
+			return mcp.NewToolResultText(fmt.Sprintf("deleted task %s", id)), nil
+		},
+	)
+
+	return mcpserver.NewSSEServer(srv, mcpserver.WithBaseURL(mcpBaseURL))
 }
 
 // startMCPServer launches the SSE server in the background and returns a
 // shutdown function. It blocks briefly until the server is ready.
-func startMCPServer(ctx context.Context, w *wrapper) (shutdown func(), err error) {
-	srv := newMCPServer(w)
+func startMCPServer(ctx context.Context, w *wrapper, s *scheduler) (shutdown func(), err error) {
+	srv := newMCPServer(w, s)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -42,7 +113,6 @@ func startMCPServer(ctx context.Context, w *wrapper) (shutdown func(), err error
 		}
 	}()
 
-	// Give the server a moment to start; surface any immediate bind errors.
 	select {
 	case err := <-errCh:
 		return nil, err
