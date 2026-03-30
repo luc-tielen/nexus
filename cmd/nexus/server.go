@@ -15,7 +15,7 @@ const mcpAddr = ":" + mcpPort
 const mcpBaseURL = "http://localhost:" + mcpPort
 
 // newMCPServer creates the MCP server and registers all tools.
-func newMCPServer(w *wrapper, s *scheduler) *mcpserver.SSEServer {
+func newMCPServer(w *wrapper, s *scheduler, dc *discordClient) *mcpserver.SSEServer {
 	srv := mcpserver.NewMCPServer("nexus", "0.1.0")
 
 	srv.AddTool(
@@ -98,13 +98,37 @@ func newMCPServer(w *wrapper, s *scheduler) *mcpserver.SSEServer {
 		},
 	)
 
+	srv.AddTool(
+		mcp.NewTool("send_discord_message",
+			mcp.WithDescription("Send a message to the configured Discord channel. "+
+				"Requires DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID environment variables."),
+			mcp.WithString("message",
+				mcp.Required(),
+				mcp.Description("The message content to send."),
+			),
+		),
+		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			if dc == nil {
+				return nil, fmt.Errorf("Discord is not configured: set DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID")
+			}
+			message := req.GetString("message", "")
+			if message == "" {
+				return nil, fmt.Errorf("message is required")
+			}
+			if err := dc.Send(message); err != nil {
+				return nil, fmt.Errorf("sending Discord message: %w", err)
+			}
+			return mcp.NewToolResultText("message sent"), nil
+		},
+	)
+
 	return mcpserver.NewSSEServer(srv, mcpserver.WithBaseURL(mcpBaseURL))
 }
 
 // startMCPServer launches the SSE server in the background and returns a
 // shutdown function. It blocks briefly until the server is ready.
-func startMCPServer(ctx context.Context, w *wrapper, s *scheduler) (shutdown func(), err error) {
-	srv := newMCPServer(w, s)
+func startMCPServer(ctx context.Context, w *wrapper, s *scheduler, dc *discordClient) (shutdown func(), err error) {
+	srv := newMCPServer(w, s, dc)
 
 	errCh := make(chan error, 1)
 	go func() {

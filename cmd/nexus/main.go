@@ -41,7 +41,13 @@ func main() {
 	s := newScheduler(w.Inject)
 	defer s.Stop()
 
-	shutdown, err := startMCPServer(ctx, w, s)
+	dc, err := newDiscordClient()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "nexus: Discord not configured:", err)
+		dc = nil
+	}
+
+	shutdown, err := startMCPServer(ctx, w, s, dc)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "nexus: MCP server failed to start:", err)
 		os.Exit(1)
