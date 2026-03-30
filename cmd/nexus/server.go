@@ -109,7 +109,7 @@ func newMCPServer(w *wrapper, s *scheduler, dc *discordClient) *mcpserver.SSESer
 		),
 		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			if dc == nil {
-				return nil, fmt.Errorf("Discord is not configured: set DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID")
+				return nil, fmt.Errorf("discord is not configured: set DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID")
 			}
 			message := req.GetString("message", "")
 			if message == "" {
