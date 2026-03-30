@@ -5,6 +5,21 @@ import (
 	"testing"
 )
 
+// Inject test
+
+func TestInject(t *testing.T) {
+	w := newWrapper()
+	w.Inject("hello")
+	select {
+	case got := <-w.inject:
+		if got != "hello" {
+			t.Errorf("got %q, want %q", got, "hello")
+		}
+	default:
+		t.Error("expected message in inject channel")
+	}
+}
+
 // trackInput tests
 
 func TestTrackInput_PrintableChars(t *testing.T) {

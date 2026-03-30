@@ -22,8 +22,8 @@ func newMCPServer(w *wrapper, s *scheduler, dc *discordClient) *mcpserver.SSESer
 		mcp.NewTool("get_time",
 			mcp.WithDescription("Returns the current time on the host machine."),
 		),
-		func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return mcp.NewToolResultText(time.Now().String()), nil
+		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return handleGetTime(req)
 		},
 	)
 
@@ -42,19 +42,7 @@ func newMCPServer(w *wrapper, s *scheduler, dc *discordClient) *mcpserver.SSESer
 			),
 		),
 		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			schedule := req.GetString("schedule", "")
-			message := req.GetString("message", "")
-			if schedule == "" {
-				return nil, fmt.Errorf("schedule is required")
-			}
-			if message == "" {
-				return nil, fmt.Errorf("message is required")
-			}
-			id, err := s.Add(schedule, message)
-			if err != nil {
-				return nil, err
-			}
-			return mcp.NewToolResultText(fmt.Sprintf("scheduled task %s", id)), nil
+			return handleScheduleTask(s, req)
 		},
 	)
 
@@ -62,19 +50,8 @@ func newMCPServer(w *wrapper, s *scheduler, dc *discordClient) *mcpserver.SSESer
 		mcp.NewTool("list_tasks",
 			mcp.WithDescription("List all currently scheduled tasks."),
 		),
-		func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			jobs := s.List()
-			type row struct {
-				ID       string `json:"id"`
-				Schedule string `json:"schedule"`
-				Message  string `json:"message"`
-			}
-			rows := make([]row, len(jobs))
-			for i, j := range jobs {
-				rows[i] = row{ID: j.ID, Schedule: j.Schedule, Message: j.Message}
-			}
-			out, _ := json.Marshal(rows)
-			return mcp.NewToolResultText(string(out)), nil
+		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return handleListTasks(s, req)
 		},
 	)
 
@@ -87,14 +64,7 @@ func newMCPServer(w *wrapper, s *scheduler, dc *discordClient) *mcpserver.SSESer
 			),
 		),
 		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			id := req.GetString("id", "")
-			if id == "" {
-				return nil, fmt.Errorf("id is required")
-			}
-			if !s.Delete(id) {
-				return nil, fmt.Errorf("task %s not found", id)
-			}
-			return mcp.NewToolResultText(fmt.Sprintf("deleted task %s", id)), nil
+			return handleDeleteTask(s, req)
 		},
 	)
 
@@ -108,21 +78,71 @@ func newMCPServer(w *wrapper, s *scheduler, dc *discordClient) *mcpserver.SSESer
 			),
 		),
 		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			if dc == nil {
-				return nil, fmt.Errorf("discord is not configured: set DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID")
-			}
-			message := req.GetString("message", "")
-			if message == "" {
-				return nil, fmt.Errorf("message is required")
-			}
-			if err := dc.Send(message); err != nil {
-				return nil, fmt.Errorf("sending Discord message: %w", err)
-			}
-			return mcp.NewToolResultText("message sent"), nil
+			return handleSendDiscordMessage(dc, req)
 		},
 	)
 
 	return mcpserver.NewSSEServer(srv, mcpserver.WithBaseURL(mcpBaseURL))
+}
+
+func handleGetTime(_ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return mcp.NewToolResultText(time.Now().String()), nil
+}
+
+func handleScheduleTask(s *scheduler, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	schedule := req.GetString("schedule", "")
+	message := req.GetString("message", "")
+	if schedule == "" {
+		return nil, fmt.Errorf("schedule is required")
+	}
+	if message == "" {
+		return nil, fmt.Errorf("message is required")
+	}
+	id, err := s.Add(schedule, message)
+	if err != nil {
+		return nil, err
+	}
+	return mcp.NewToolResultText(fmt.Sprintf("scheduled task %s", id)), nil
+}
+
+func handleListTasks(s *scheduler, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	jobs := s.List()
+	type row struct {
+		ID       string `json:"id"`
+		Schedule string `json:"schedule"`
+		Message  string `json:"message"`
+	}
+	rows := make([]row, len(jobs))
+	for i, j := range jobs {
+		rows[i] = row{ID: j.ID, Schedule: j.Schedule, Message: j.Message}
+	}
+	out, _ := json.Marshal(rows)
+	return mcp.NewToolResultText(string(out)), nil
+}
+
+func handleDeleteTask(s *scheduler, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id := req.GetString("id", "")
+	if id == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+	if !s.Delete(id) {
+		return nil, fmt.Errorf("task %s not found", id)
+	}
+	return mcp.NewToolResultText(fmt.Sprintf("deleted task %s", id)), nil
+}
+
+func handleSendDiscordMessage(dc *discordClient, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if dc == nil {
+		return nil, fmt.Errorf("discord is not configured: set DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID")
+	}
+	message := req.GetString("message", "")
+	if message == "" {
+		return nil, fmt.Errorf("message is required")
+	}
+	if err := dc.Send(message); err != nil {
+		return nil, fmt.Errorf("sending Discord message: %w", err)
+	}
+	return mcp.NewToolResultText("message sent"), nil
 }
 
 // startMCPServer launches the SSE server in the background and returns a
