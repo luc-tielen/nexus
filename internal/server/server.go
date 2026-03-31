@@ -9,7 +9,7 @@ import (
 	"github.com/luc/nexus/internal/discord"
 	"github.com/luc/nexus/internal/install"
 	"github.com/luc/nexus/internal/scheduler"
-	"github.com/luc/nexus/internal/wrapper"
+	"github.com/luc/nexus/internal/pty"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 )
@@ -18,7 +18,7 @@ const mcpPort = "7744"
 const mcpAddr = ":" + mcpPort
 
 // New creates the MCP server and registers all tools.
-func New(w *wrapper.Wrapper, s *scheduler.Scheduler, dc *discord.Client) *mcpserver.SSEServer {
+func New(w *pty.Wrapper, s *scheduler.Scheduler, dc *discord.Client) *mcpserver.SSEServer {
 	srv := mcpserver.NewMCPServer("nexus", "0.1.0")
 
 	srv.AddTool(
@@ -151,7 +151,7 @@ func handleSendDiscordMessage(dc *discord.Client, req mcp.CallToolRequest) (*mcp
 
 // Start launches the SSE server in the background and returns a shutdown
 // function. It blocks briefly until the server is ready.
-func Start(ctx context.Context, w *wrapper.Wrapper, s *scheduler.Scheduler, dc *discord.Client) (shutdown func(), err error) {
+func Start(ctx context.Context, w *pty.Wrapper, s *scheduler.Scheduler, dc *discord.Client) (shutdown func(), err error) {
 	srv := New(w, s, dc)
 
 	errCh := make(chan error, 1)

@@ -11,10 +11,10 @@ import (
 	"github.com/luc/nexus/internal/install"
 	"github.com/luc/nexus/internal/scheduler"
 	"github.com/luc/nexus/internal/server"
-	"github.com/luc/nexus/internal/wrapper"
+	"github.com/luc/nexus/internal/pty"
 )
 
-func runDaemon(ctx context.Context, w *wrapper.Wrapper) {
+func runDaemon(ctx context.Context, w *pty.Wrapper) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -43,7 +43,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	w := wrapper.New()
+	w := pty.New()
 	s := scheduler.New(w.Inject)
 	defer s.Stop()
 
