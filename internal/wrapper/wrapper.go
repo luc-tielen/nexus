@@ -1,4 +1,4 @@
-package main
+package wrapper
 
 import (
 	"context"
@@ -14,29 +14,32 @@ import (
 	"golang.org/x/term"
 )
 
-type wrapper struct {
+// Wrapper manages a PTY-wrapped child process and supports injecting messages
+// into its stdin without clobbering in-progress user input.
+type Wrapper struct {
 	ptm     *os.File
 	inject  chan string
 	mu      sync.Mutex
 	lineBuf []byte
 }
 
-func newWrapper() *wrapper {
-	return &wrapper{
+// New creates a Wrapper ready to run a child process.
+func New() *Wrapper {
+	return &Wrapper{
 		inject: make(chan string, 8),
 	}
 }
 
 // Inject sends msg to Claude's stdin, saving and restoring any in-progress
 // user input around it.
-func (w *wrapper) Inject(msg string) {
+func (w *Wrapper) Inject(msg string) {
 	w.inject <- msg
 }
 
 // trackInput updates the line buffer as the user types. It handles printable
 // characters, backspace, enter, and ESC sequences (buffered verbatim for
 // faithful replay).
-func (w *wrapper) trackInput(b []byte) {
+func (w *Wrapper) trackInput(b []byte) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	for i := 0; i < len(b); {
@@ -76,7 +79,8 @@ func doInject(dst io.Writer, msg string, saved []byte) {
 	}
 }
 
-func (w *wrapper) run(ctx context.Context, path string, args []string) error {
+// Run starts path with args under a PTY and blocks until it exits.
+func (w *Wrapper) Run(ctx context.Context, path string, args []string) error {
 	cmd := exec.Command(path, args...)
 
 	ptm, err := pty.Start(cmd)

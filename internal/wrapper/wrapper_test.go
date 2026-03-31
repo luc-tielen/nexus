@@ -1,4 +1,4 @@
-package main
+package wrapper
 
 import (
 	"bytes"
@@ -8,7 +8,7 @@ import (
 // Inject test
 
 func TestInject(t *testing.T) {
-	w := newWrapper()
+	w := New()
 	w.Inject("hello")
 	select {
 	case got := <-w.inject:
@@ -23,7 +23,7 @@ func TestInject(t *testing.T) {
 // trackInput tests
 
 func TestTrackInput_PrintableChars(t *testing.T) {
-	w := newWrapper()
+	w := New()
 	w.trackInput([]byte("hello"))
 	if string(w.lineBuf) != "hello" {
 		t.Errorf("got %q, want %q", w.lineBuf, "hello")
@@ -31,7 +31,7 @@ func TestTrackInput_PrintableChars(t *testing.T) {
 }
 
 func TestTrackInput_Backspace(t *testing.T) {
-	w := newWrapper()
+	w := New()
 	w.trackInput([]byte("hello"))
 	w.trackInput([]byte{0x7f, 0x7f}) // DEL x2
 	if string(w.lineBuf) != "hel" {
@@ -40,7 +40,7 @@ func TestTrackInput_Backspace(t *testing.T) {
 }
 
 func TestTrackInput_BackspaceBS(t *testing.T) {
-	w := newWrapper()
+	w := New()
 	w.trackInput([]byte("ab"))
 	w.trackInput([]byte{0x08}) // BS
 	if string(w.lineBuf) != "a" {
@@ -49,7 +49,7 @@ func TestTrackInput_BackspaceBS(t *testing.T) {
 }
 
 func TestTrackInput_BackspaceOnEmpty(t *testing.T) {
-	w := newWrapper()
+	w := New()
 	w.trackInput([]byte{0x7f}) // no panic, buffer stays empty
 	if len(w.lineBuf) != 0 {
 		t.Errorf("expected empty buf, got %q", w.lineBuf)
@@ -57,7 +57,7 @@ func TestTrackInput_BackspaceOnEmpty(t *testing.T) {
 }
 
 func TestTrackInput_EnterCR(t *testing.T) {
-	w := newWrapper()
+	w := New()
 	w.trackInput([]byte("hello\r"))
 	if len(w.lineBuf) != 0 {
 		t.Errorf("expected empty buf after CR, got %q", w.lineBuf)
@@ -65,7 +65,7 @@ func TestTrackInput_EnterCR(t *testing.T) {
 }
 
 func TestTrackInput_EnterLF(t *testing.T) {
-	w := newWrapper()
+	w := New()
 	w.trackInput([]byte("hello\n"))
 	if len(w.lineBuf) != 0 {
 		t.Errorf("expected empty buf after LF, got %q", w.lineBuf)
@@ -73,7 +73,7 @@ func TestTrackInput_EnterLF(t *testing.T) {
 }
 
 func TestTrackInput_EnterThenMore(t *testing.T) {
-	w := newWrapper()
+	w := New()
 	w.trackInput([]byte("first\rsecond"))
 	if string(w.lineBuf) != "second" {
 		t.Errorf("got %q, want %q", w.lineBuf, "second")
@@ -81,7 +81,7 @@ func TestTrackInput_EnterThenMore(t *testing.T) {
 }
 
 func TestTrackInput_EscSequenceArrowLeft(t *testing.T) {
-	w := newWrapper()
+	w := New()
 	w.trackInput([]byte("hel"))
 	w.trackInput([]byte{0x1b, '[', 'D'}) // left arrow: ESC [ D
 	want := "hel\x1b[D"
@@ -92,7 +92,7 @@ func TestTrackInput_EscSequenceArrowLeft(t *testing.T) {
 
 func TestTrackInput_EscSequenceAtEndOfChunk(t *testing.T) {
 	// ESC sequence split across calls: partial ESC arrives alone.
-	w := newWrapper()
+	w := New()
 	w.trackInput([]byte{0x1b}) // lone ESC (sequence incomplete)
 	w.trackInput([]byte("x"))
 	// the lone ESC is kept in the buffer; 'x' appends

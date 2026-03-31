@@ -1,4 +1,4 @@
-package main
+package discord
 
 import (
 	"errors"
@@ -20,9 +20,9 @@ func (f *fakeDiscordSender) ChannelMessageSend(channelID, content string, _ ...d
 	return nil, f.err
 }
 
-func TestDiscordClient_Send(t *testing.T) {
+func TestClient_Send(t *testing.T) {
 	fake := &fakeDiscordSender{}
-	c := &discordClient{session: fake, channelID: "chan123"}
+	c := &Client{Session: fake, ChannelID: "chan123"}
 
 	if err := c.Send("hello discord"); err != nil {
 		t.Fatalf("Send: %v", err)
@@ -35,44 +35,44 @@ func TestDiscordClient_Send(t *testing.T) {
 	}
 }
 
-func TestDiscordClient_SendPropagatesError(t *testing.T) {
+func TestClient_SendPropagatesError(t *testing.T) {
 	fake := &fakeDiscordSender{err: errors.New("forbidden")}
-	c := &discordClient{session: fake, channelID: "chan123"}
+	c := &Client{Session: fake, ChannelID: "chan123"}
 
 	if err := c.Send("hello"); err == nil {
 		t.Error("expected error, got nil")
 	}
 }
 
-func TestNewDiscordClient_MissingToken(t *testing.T) {
+func TestNewClient_MissingToken(t *testing.T) {
 	t.Setenv("DISCORD_BOT_TOKEN", "")
 	t.Setenv("DISCORD_CHANNEL_ID", "chan123")
 
-	_, err := newDiscordClient()
+	_, err := NewClient()
 	if err == nil {
 		t.Error("expected error when token missing")
 	}
 }
 
-func TestNewDiscordClient_MissingChannelID(t *testing.T) {
+func TestNewClient_MissingChannelID(t *testing.T) {
 	t.Setenv("DISCORD_BOT_TOKEN", "tok")
 	t.Setenv("DISCORD_CHANNEL_ID", "")
 
-	_, err := newDiscordClient()
+	_, err := NewClient()
 	if err == nil {
 		t.Error("expected error when channel ID missing")
 	}
 }
 
-func TestNewDiscordClient_BothSet(t *testing.T) {
+func TestNewClient_BothSet(t *testing.T) {
 	t.Setenv("DISCORD_BOT_TOKEN", "mytoken")
 	t.Setenv("DISCORD_CHANNEL_ID", "mychannel")
 
-	c, err := newDiscordClient()
+	c, err := NewClient()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if c.channelID != "mychannel" {
-		t.Errorf("channelID = %q, want %q", c.channelID, "mychannel")
+	if c.ChannelID != "mychannel" {
+		t.Errorf("ChannelID = %q, want %q", c.ChannelID, "mychannel")
 	}
 }

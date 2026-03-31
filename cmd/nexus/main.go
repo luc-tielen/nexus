@@ -6,9 +6,15 @@ import (
 	"os"
 	"os/exec"
 	"time"
+
+	"github.com/luc/nexus/internal/discord"
+	"github.com/luc/nexus/internal/install"
+	"github.com/luc/nexus/internal/scheduler"
+	"github.com/luc/nexus/internal/server"
+	"github.com/luc/nexus/internal/wrapper"
 )
 
-func runDaemon(ctx context.Context, w *wrapper) {
+func runDaemon(ctx context.Context, w *wrapper.Wrapper) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -21,7 +27,7 @@ func runDaemon(ctx context.Context, w *wrapper) {
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "install" {
-		if err := install(); err != nil {
+		if err := install.Install(); err != nil {
 			fmt.Fprintln(os.Stderr, "nexus:", err)
 			os.Exit(1)
 		}
@@ -37,17 +43,17 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	w := newWrapper()
-	s := newScheduler(w.Inject)
+	w := wrapper.New()
+	s := scheduler.New(w.Inject)
 	defer s.Stop()
 
-	dc, err := newDiscordClient()
+	dc, err := discord.NewClient()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "nexus: Discord not configured:", err)
 		dc = nil
 	}
 
-	shutdown, err := startMCPServer(ctx, w, s, dc)
+	shutdown, err := server.Start(ctx, w, s, dc)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "nexus: MCP server failed to start:", err)
 		os.Exit(1)
@@ -56,7 +62,7 @@ func main() {
 
 	go runDaemon(ctx, w)
 
-	if err := w.run(ctx, claude, os.Args[1:]); err != nil {
+	if err := w.Run(ctx, claude, os.Args[1:]); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			os.Exit(exitErr.ExitCode())
 		}

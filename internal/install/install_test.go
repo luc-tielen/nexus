@@ -1,4 +1,4 @@
-package main
+package install
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ func TestInstall_CreatesFileFromScratch(t *testing.T) {
 	dir := t.TempDir()
 	chdir(t, dir)
 
-	if err := install(); err != nil {
+	if err := Install(); err != nil {
 		t.Fatalf("install: %v", err)
 	}
 
@@ -23,10 +23,10 @@ func TestInstall_Idempotent(t *testing.T) {
 	dir := t.TempDir()
 	chdir(t, dir)
 
-	if err := install(); err != nil {
+	if err := Install(); err != nil {
 		t.Fatalf("first install: %v", err)
 	}
-	if err := install(); err != nil {
+	if err := Install(); err != nil {
 		t.Fatalf("second install: %v", err)
 	}
 
@@ -55,7 +55,7 @@ func TestInstall_PreservesExistingContent(t *testing.T) {
 	}
 	writeSettingsFile(t, dir, existing)
 
-	if err := install(); err != nil {
+	if err := Install(); err != nil {
 		t.Fatalf("install: %v", err)
 	}
 
@@ -79,7 +79,7 @@ func TestInstall_PreservesExistingMCPServers(t *testing.T) {
 	}
 	writeSettingsFile(t, dir, existing)
 
-	if err := install(); err != nil {
+	if err := Install(); err != nil {
 		t.Fatalf("install: %v", err)
 	}
 
@@ -108,7 +108,7 @@ func chdir(t *testing.T, dir string) {
 
 func readSettingsFile(t *testing.T, dir string) map[string]any {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join(dir, settingsPath))
+	raw, err := os.ReadFile(filepath.Join(dir, SettingsPath))
 	if err != nil {
 		t.Fatalf("reading settings: %v", err)
 	}
@@ -121,7 +121,7 @@ func readSettingsFile(t *testing.T, dir string) map[string]any {
 
 func writeSettingsFile(t *testing.T, dir string, data map[string]any) {
 	t.Helper()
-	path := filepath.Join(dir, settingsPath)
+	path := filepath.Join(dir, SettingsPath)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +144,7 @@ func assertMCPEntry(t *testing.T, data map[string]any) {
 	if nexus["type"] != "sse" {
 		t.Errorf("type = %q, want %q", nexus["type"], "sse")
 	}
-	wantURL := mcpBaseURL + "/sse"
+	wantURL := MCPBaseURL + "/sse"
 	if nexus["url"] != wantURL {
 		t.Errorf("url = %q, want %q", nexus["url"], wantURL)
 	}

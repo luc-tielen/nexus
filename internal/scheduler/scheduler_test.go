@@ -1,4 +1,4 @@
-package main
+package scheduler
 
 import (
 	"sync"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestScheduler_AddValidSchedule(t *testing.T) {
-	s := newScheduler(func(string) {})
+	s := New(func(string) {})
 	defer s.Stop()
 
 	id, err := s.Add("* * * * *", "hello")
@@ -20,7 +20,7 @@ func TestScheduler_AddValidSchedule(t *testing.T) {
 }
 
 func TestScheduler_AddInvalidSchedule(t *testing.T) {
-	s := newScheduler(func(string) {})
+	s := New(func(string) {})
 	defer s.Stop()
 
 	_, err := s.Add("not-a-cron", "hello")
@@ -30,7 +30,7 @@ func TestScheduler_AddInvalidSchedule(t *testing.T) {
 }
 
 func TestScheduler_List(t *testing.T) {
-	s := newScheduler(func(string) {})
+	s := New(func(string) {})
 	defer s.Stop()
 
 	if jobs := s.List(); len(jobs) != 0 {
@@ -54,7 +54,7 @@ func TestScheduler_List(t *testing.T) {
 }
 
 func TestScheduler_Delete(t *testing.T) {
-	s := newScheduler(func(string) {})
+	s := New(func(string) {})
 	defer s.Stop()
 
 	id, _ := s.Add("* * * * *", "hello")
@@ -68,7 +68,7 @@ func TestScheduler_Delete(t *testing.T) {
 }
 
 func TestScheduler_DeleteNonExistent(t *testing.T) {
-	s := newScheduler(func(string) {})
+	s := New(func(string) {})
 	defer s.Stop()
 
 	if s.Delete("999") {
@@ -80,7 +80,7 @@ func TestScheduler_Fires(t *testing.T) {
 	var mu sync.Mutex
 	var received []string
 
-	s := newScheduler(func(msg string) {
+	s := New(func(msg string) {
 		mu.Lock()
 		received = append(received, msg)
 		mu.Unlock()
@@ -112,7 +112,7 @@ func TestScheduler_DeleteStopsFiring(t *testing.T) {
 	var mu sync.Mutex
 	var count int
 
-	s := newScheduler(func(string) {
+	s := New(func(string) {
 		mu.Lock()
 		count++
 		mu.Unlock()

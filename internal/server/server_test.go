@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"encoding/json"
@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/luc/nexus/internal/discord"
+	"github.com/luc/nexus/internal/scheduler"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -15,6 +17,15 @@ func toolReq(args map[string]any) mcp.CallToolRequest {
 	req := mcp.CallToolRequest{}
 	req.Params.Arguments = args
 	return req
+}
+
+// fakeDiscordSender is a test double for discord.Sender.
+type fakeDiscordSender struct {
+	err error
+}
+
+func (f *fakeDiscordSender) ChannelMessageSend(_, _ string, _ ...discordgo.RequestOption) (*discordgo.Message, error) {
+	return nil, f.err
 }
 
 // --- get_time ---
@@ -32,7 +43,7 @@ func TestHandleGetTime(t *testing.T) {
 // --- schedule_task ---
 
 func TestHandleScheduleTask_Success(t *testing.T) {
-	s := newScheduler(func(string) {})
+	s := scheduler.New(func(string) {})
 	defer s.Stop()
 
 	res, err := handleScheduleTask(s, toolReq(map[string]any{
@@ -48,7 +59,7 @@ func TestHandleScheduleTask_Success(t *testing.T) {
 }
 
 func TestHandleScheduleTask_MissingSchedule(t *testing.T) {
-	s := newScheduler(func(string) {})
+	s := scheduler.New(func(string) {})
 	defer s.Stop()
 
 	_, err := handleScheduleTask(s, toolReq(map[string]any{"message": "hello"}))
@@ -58,7 +69,7 @@ func TestHandleScheduleTask_MissingSchedule(t *testing.T) {
 }
 
 func TestHandleScheduleTask_MissingMessage(t *testing.T) {
-	s := newScheduler(func(string) {})
+	s := scheduler.New(func(string) {})
 	defer s.Stop()
 
 	_, err := handleScheduleTask(s, toolReq(map[string]any{"schedule": "* * * * *"}))
@@ -68,7 +79,7 @@ func TestHandleScheduleTask_MissingMessage(t *testing.T) {
 }
 
 func TestHandleScheduleTask_InvalidSchedule(t *testing.T) {
-	s := newScheduler(func(string) {})
+	s := scheduler.New(func(string) {})
 	defer s.Stop()
 
 	_, err := handleScheduleTask(s, toolReq(map[string]any{
@@ -83,7 +94,7 @@ func TestHandleScheduleTask_InvalidSchedule(t *testing.T) {
 // --- list_tasks ---
 
 func TestHandleListTasks_Empty(t *testing.T) {
-	s := newScheduler(func(string) {})
+	s := scheduler.New(func(string) {})
 	defer s.Stop()
 
 	res, err := handleListTasks(s, mcp.CallToolRequest{})
@@ -100,7 +111,7 @@ func TestHandleListTasks_Empty(t *testing.T) {
 }
 
 func TestHandleListTasks_WithJobs(t *testing.T) {
-	s := newScheduler(func(string) {})
+	s := scheduler.New(func(string) {})
 	defer s.Stop()
 	_, _ = s.Add("* * * * *", "msg")
 
@@ -123,7 +134,7 @@ func TestHandleListTasks_WithJobs(t *testing.T) {
 // --- delete_task ---
 
 func TestHandleDeleteTask_Success(t *testing.T) {
-	s := newScheduler(func(string) {})
+	s := scheduler.New(func(string) {})
 	defer s.Stop()
 	id, _ := s.Add("* * * * *", "msg")
 
@@ -137,7 +148,7 @@ func TestHandleDeleteTask_Success(t *testing.T) {
 }
 
 func TestHandleDeleteTask_MissingID(t *testing.T) {
-	s := newScheduler(func(string) {})
+	s := scheduler.New(func(string) {})
 	defer s.Stop()
 
 	_, err := handleDeleteTask(s, toolReq(map[string]any{}))
@@ -147,7 +158,7 @@ func TestHandleDeleteTask_MissingID(t *testing.T) {
 }
 
 func TestHandleDeleteTask_NotFound(t *testing.T) {
-	s := newScheduler(func(string) {})
+	s := scheduler.New(func(string) {})
 	defer s.Stop()
 
 	_, err := handleDeleteTask(s, toolReq(map[string]any{"id": "999"}))
@@ -166,8 +177,7 @@ func TestHandleSendDiscordMessage_NilClient(t *testing.T) {
 }
 
 func TestHandleSendDiscordMessage_MissingMessage(t *testing.T) {
-	fake := &fakeDiscordSender{}
-	dc := &discordClient{session: fake, channelID: "c"}
+	dc := &discord.Client{Session: &fakeDiscordSender{}, ChannelID: "c"}
 
 	_, err := handleSendDiscordMessage(dc, toolReq(map[string]any{}))
 	if err == nil {
@@ -176,8 +186,7 @@ func TestHandleSendDiscordMessage_MissingMessage(t *testing.T) {
 }
 
 func TestHandleSendDiscordMessage_Success(t *testing.T) {
-	fake := &fakeDiscordSender{}
-	dc := &discordClient{session: fake, channelID: "c"}
+	dc := &discord.Client{Session: &fakeDiscordSender{}, ChannelID: "c"}
 
 	res, err := handleSendDiscordMessage(dc, toolReq(map[string]any{"message": "hi"}))
 	if err != nil {
@@ -189,8 +198,7 @@ func TestHandleSendDiscordMessage_Success(t *testing.T) {
 }
 
 func TestHandleSendDiscordMessage_SendError(t *testing.T) {
-	fake := &fakeDiscordSender{err: errors.New("forbidden")}
-	dc := &discordClient{session: fake, channelID: "c"}
+	dc := &discord.Client{Session: &fakeDiscordSender{err: errors.New("forbidden")}, ChannelID: "c"}
 
 	_, err := handleSendDiscordMessage(dc, toolReq(map[string]any{"message": "hi"}))
 	if err == nil {
@@ -208,9 +216,3 @@ func textContent(res *mcp.CallToolResult) string {
 	}
 	return ""
 }
-
-// fakeDiscordSender is also used in discord_test.go — redeclaring would cause
-// a compile error, so we reference it from there. The type is defined once in
-// discord_test.go within the same package.
-var _ discordSender = (*fakeDiscordSender)(nil)
-var _ = (*discordgo.Session)(nil) // ensure import is used

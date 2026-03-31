@@ -1,4 +1,4 @@
-package main
+package discord
 
 import (
 	"fmt"
@@ -7,22 +7,22 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-// discordSender is the subset of discordgo.Session used for sending messages.
+// Sender is the subset of discordgo.Session used for sending messages.
 // Extracted as an interface to allow test doubles.
-type discordSender interface {
+type Sender interface {
 	ChannelMessageSend(channelID, content string, options ...discordgo.RequestOption) (*discordgo.Message, error)
 }
 
-// discordClient holds a Discord session and the target channel.
-type discordClient struct {
-	session   discordSender
-	channelID string
+// Client holds a Discord session and the target channel.
+type Client struct {
+	Session   Sender
+	ChannelID string
 }
 
-// newDiscordClient reads DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID from the
+// NewClient reads DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID from the
 // environment and returns a ready client. Returns an error if either variable
 // is unset or if the session cannot be created.
-func newDiscordClient() (*discordClient, error) {
+func NewClient() (*Client, error) {
 	token := os.Getenv("DISCORD_BOT_TOKEN")
 	if token == "" {
 		return nil, fmt.Errorf("DISCORD_BOT_TOKEN is not set")
@@ -37,11 +37,11 @@ func newDiscordClient() (*discordClient, error) {
 		return nil, fmt.Errorf("creating Discord session: %w", err)
 	}
 
-	return &discordClient{session: dg, channelID: channelID}, nil
+	return &Client{Session: dg, ChannelID: channelID}, nil
 }
 
 // Send posts content to the configured Discord channel.
-func (c *discordClient) Send(content string) error {
-	_, err := c.session.ChannelMessageSend(c.channelID, content)
+func (c *Client) Send(content string) error {
+	_, err := c.Session.ChannelMessageSend(c.ChannelID, content)
 	return err
 }

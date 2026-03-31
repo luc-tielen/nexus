@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"context"
@@ -6,16 +6,19 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/luc/nexus/internal/discord"
+	"github.com/luc/nexus/internal/install"
+	"github.com/luc/nexus/internal/scheduler"
+	"github.com/luc/nexus/internal/wrapper"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 )
 
 const mcpPort = "7744"
 const mcpAddr = ":" + mcpPort
-const mcpBaseURL = "http://localhost:" + mcpPort
 
-// newMCPServer creates the MCP server and registers all tools.
-func newMCPServer(w *wrapper, s *scheduler, dc *discordClient) *mcpserver.SSEServer {
+// New creates the MCP server and registers all tools.
+func New(w *wrapper.Wrapper, s *scheduler.Scheduler, dc *discord.Client) *mcpserver.SSEServer {
 	srv := mcpserver.NewMCPServer("nexus", "0.1.0")
 
 	srv.AddTool(
@@ -82,14 +85,15 @@ func newMCPServer(w *wrapper, s *scheduler, dc *discordClient) *mcpserver.SSESer
 		},
 	)
 
-	return mcpserver.NewSSEServer(srv, mcpserver.WithBaseURL(mcpBaseURL))
+	_ = w // reserved for future tools that need the wrapper
+	return mcpserver.NewSSEServer(srv, mcpserver.WithBaseURL(install.MCPBaseURL))
 }
 
 func handleGetTime(_ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	return mcp.NewToolResultText(time.Now().String()), nil
 }
 
-func handleScheduleTask(s *scheduler, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func handleScheduleTask(s *scheduler.Scheduler, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	schedule := req.GetString("schedule", "")
 	message := req.GetString("message", "")
 	if schedule == "" {
@@ -105,7 +109,7 @@ func handleScheduleTask(s *scheduler, req mcp.CallToolRequest) (*mcp.CallToolRes
 	return mcp.NewToolResultText(fmt.Sprintf("scheduled task %s", id)), nil
 }
 
-func handleListTasks(s *scheduler, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func handleListTasks(s *scheduler.Scheduler, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	jobs := s.List()
 	type row struct {
 		ID       string `json:"id"`
@@ -120,7 +124,7 @@ func handleListTasks(s *scheduler, _ mcp.CallToolRequest) (*mcp.CallToolResult, 
 	return mcp.NewToolResultText(string(out)), nil
 }
 
-func handleDeleteTask(s *scheduler, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func handleDeleteTask(s *scheduler.Scheduler, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	id := req.GetString("id", "")
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
@@ -131,7 +135,7 @@ func handleDeleteTask(s *scheduler, req mcp.CallToolRequest) (*mcp.CallToolResul
 	return mcp.NewToolResultText(fmt.Sprintf("deleted task %s", id)), nil
 }
 
-func handleSendDiscordMessage(dc *discordClient, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func handleSendDiscordMessage(dc *discord.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	if dc == nil {
 		return nil, fmt.Errorf("discord is not configured: set DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID")
 	}
@@ -145,10 +149,10 @@ func handleSendDiscordMessage(dc *discordClient, req mcp.CallToolRequest) (*mcp.
 	return mcp.NewToolResultText("message sent"), nil
 }
 
-// startMCPServer launches the SSE server in the background and returns a
-// shutdown function. It blocks briefly until the server is ready.
-func startMCPServer(ctx context.Context, w *wrapper, s *scheduler, dc *discordClient) (shutdown func(), err error) {
-	srv := newMCPServer(w, s, dc)
+// Start launches the SSE server in the background and returns a shutdown
+// function. It blocks briefly until the server is ready.
+func Start(ctx context.Context, w *wrapper.Wrapper, s *scheduler.Scheduler, dc *discord.Client) (shutdown func(), err error) {
+	srv := New(w, s, dc)
 
 	errCh := make(chan error, 1)
 	go func() {
