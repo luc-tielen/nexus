@@ -9,9 +9,10 @@ import (
 
 	"github.com/luc/nexus/internal/discord"
 	"github.com/luc/nexus/internal/install"
+	"github.com/luc/nexus/internal/pty"
 	"github.com/luc/nexus/internal/scheduler"
 	"github.com/luc/nexus/internal/server"
-	"github.com/luc/nexus/internal/pty"
+	"github.com/luc/nexus/internal/todoist"
 )
 
 func runDaemon(ctx context.Context, w *pty.Wrapper) {
@@ -53,7 +54,13 @@ func main() {
 		dc = nil
 	}
 
-	shutdown, err := server.Start(ctx, w, s, dc)
+	tc, err := todoist.NewClient()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "nexus: Todoist not configured:", err)
+		tc = nil
+	}
+
+	shutdown, err := server.Start(ctx, w, s, dc, tc)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "nexus: MCP server failed to start:", err)
 		os.Exit(1)

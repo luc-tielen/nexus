@@ -8,8 +8,9 @@ import (
 
 	"github.com/luc/nexus/internal/discord"
 	"github.com/luc/nexus/internal/install"
-	"github.com/luc/nexus/internal/scheduler"
 	"github.com/luc/nexus/internal/pty"
+	"github.com/luc/nexus/internal/scheduler"
+	"github.com/luc/nexus/internal/todoist"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 )
@@ -18,7 +19,7 @@ const mcpPort = "7744"
 const mcpAddr = ":" + mcpPort
 
 // New creates the MCP server and registers all tools.
-func New(w *pty.Wrapper, s *scheduler.Scheduler, dc *discord.Client) *mcpserver.SSEServer {
+func New(w *pty.Wrapper, s *scheduler.Scheduler, dc *discord.Client, tc *todoist.Client) *mcpserver.SSEServer {
 	srv := mcpserver.NewMCPServer("nexus", "0.1.0")
 
 	srv.AddTool(
@@ -82,6 +83,20 @@ func New(w *pty.Wrapper, s *scheduler.Scheduler, dc *discord.Client) *mcpserver.
 		),
 		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleSendDiscordMessage(dc, req)
+		},
+	)
+
+	srv.AddTool(
+		mcp.NewTool("create_todoist_task",
+			mcp.WithDescription("Create a new task in Todoist. "+
+				"Requires TODOIST_API_KEY environment variable."),
+			mcp.WithString("content",
+				mcp.Required(),
+				mcp.Description("The task content."),
+			),
+		),
+		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return handleCreateTodoistTask(tc, req)
 		},
 	)
 
@@ -149,10 +164,24 @@ func handleSendDiscordMessage(dc *discord.Client, req mcp.CallToolRequest) (*mcp
 	return mcp.NewToolResultText("message sent"), nil
 }
 
+func handleCreateTodoistTask(tc *todoist.Client, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if tc == nil {
+		return nil, fmt.Errorf("todoist is not configured: set TODOIST_API_KEY")
+	}
+	content := req.GetString("content", "")
+	if content == "" {
+		return nil, fmt.Errorf("content is required")
+	}
+	if err := tc.CreateTask(content); err != nil {
+		return nil, fmt.Errorf("creating Todoist task: %w", err)
+	}
+	return mcp.NewToolResultText("task created"), nil
+}
+
 // Start launches the SSE server in the background and returns a shutdown
 // function. It blocks briefly until the server is ready.
-func Start(ctx context.Context, w *pty.Wrapper, s *scheduler.Scheduler, dc *discord.Client) (shutdown func(), err error) {
-	srv := New(w, s, dc)
+func Start(ctx context.Context, w *pty.Wrapper, s *scheduler.Scheduler, dc *discord.Client, tc *todoist.Client) (shutdown func(), err error) {
+	srv := New(w, s, dc, tc)
 
 	errCh := make(chan error, 1)
 	go func() {
