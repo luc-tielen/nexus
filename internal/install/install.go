@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 )
 
+// SettingsPath is resolved relative to the user's home directory at runtime.
 const SettingsPath = ".claude/settings.json"
 
 // MCPBaseURL is the base URL the nexus MCP server listens on.
@@ -76,29 +77,46 @@ func Install() error {
 		return err
 	}
 
-	fmt.Fprintf(os.Stderr, "nexus: wrote MCP server config to %s\n", SettingsPath)
+	path, _ := settingsPath()
+	fmt.Fprintf(os.Stderr, "nexus: wrote MCP server config to %s\n", path)
 	return nil
 }
 
+func settingsPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("cannot determine home directory: %w", err)
+	}
+	return filepath.Join(home, SettingsPath), nil
+}
+
 func readSettings() (settings, error) {
-	raw, err := os.ReadFile(SettingsPath)
+	path, err := settingsPath()
+	if err != nil {
+		return settings{}, err
+	}
+	raw, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return settings{}, nil
 	}
 	if err != nil {
-		return settings{}, fmt.Errorf("reading %s: %w", SettingsPath, err)
+		return settings{}, fmt.Errorf("reading %s: %w", path, err)
 	}
 
 	var data settings
 	if err := json.Unmarshal(raw, &data); err != nil {
-		return settings{}, fmt.Errorf("parsing %s: %w", SettingsPath, err)
+		return settings{}, fmt.Errorf("parsing %s: %w", path, err)
 	}
 	return data, nil
 }
 
 func writeSettings(data settings) error {
-	if err := os.MkdirAll(filepath.Dir(SettingsPath), 0o755); err != nil {
-		return fmt.Errorf("creating %s: %w", filepath.Dir(SettingsPath), err)
+	path, err := settingsPath()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("creating %s: %w", filepath.Dir(path), err)
 	}
 
 	out, err := json.MarshalIndent(data, "", "  ")
@@ -107,5 +125,5 @@ func writeSettings(data settings) error {
 	}
 	out = append(out, '\n')
 
-	return os.WriteFile(SettingsPath, out, 0o644)
+	return os.WriteFile(path, out, 0o644)
 }

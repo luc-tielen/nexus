@@ -9,7 +9,7 @@ import (
 
 func TestInstall_CreatesFileFromScratch(t *testing.T) {
 	dir := t.TempDir()
-	chdir(t, dir)
+	t.Setenv("HOME", dir)
 
 	if err := Install(); err != nil {
 		t.Fatalf("install: %v", err)
@@ -21,7 +21,7 @@ func TestInstall_CreatesFileFromScratch(t *testing.T) {
 
 func TestInstall_Idempotent(t *testing.T) {
 	dir := t.TempDir()
-	chdir(t, dir)
+	t.Setenv("HOME", dir)
 
 	if err := Install(); err != nil {
 		t.Fatalf("first install: %v", err)
@@ -41,7 +41,7 @@ func TestInstall_Idempotent(t *testing.T) {
 
 func TestInstall_PreservesExistingContent(t *testing.T) {
 	dir := t.TempDir()
-	chdir(t, dir)
+	t.Setenv("HOME", dir)
 
 	// Write a settings.json that already has hooks config.
 	hooksJSON, _ := json.Marshal(map[string]any{"Stop": []any{"some-hook"}})
@@ -67,7 +67,7 @@ func TestInstall_PreservesExistingContent(t *testing.T) {
 
 func TestInstall_PreservesExistingMCPServers(t *testing.T) {
 	dir := t.TempDir()
-	chdir(t, dir)
+	t.Setenv("HOME", dir)
 
 	existing := settings{
 		MCPServers: map[string]mcpServerConfig{
@@ -89,18 +89,6 @@ func TestInstall_PreservesExistingMCPServers(t *testing.T) {
 }
 
 // helpers
-
-func chdir(t *testing.T, dir string) {
-	t.Helper()
-	orig, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chdir(orig) })
-}
 
 func readSettingsFile(t *testing.T, dir string) settings {
 	t.Helper()
