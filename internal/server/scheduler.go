@@ -26,7 +26,7 @@ func registerSchedulerTools(srv *mcpserver.MCPServer, s *scheduler.Scheduler) {
 			),
 		),
 		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleScheduleTask(s, req)
+			return handleAddCron(s, req)
 		},
 	)
 
@@ -35,7 +35,7 @@ func registerSchedulerTools(srv *mcpserver.MCPServer, s *scheduler.Scheduler) {
 			mcp.WithDescription("List all currently scheduled cron jobs."),
 		),
 		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleListTasks(s, req)
+			return handleListCrons(s, req)
 		},
 	)
 
@@ -48,12 +48,12 @@ func registerSchedulerTools(srv *mcpserver.MCPServer, s *scheduler.Scheduler) {
 			),
 		),
 		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleDeleteTask(s, req)
+			return handleDeleteCron(s, req)
 		},
 	)
 }
 
-func handleScheduleTask(s *scheduler.Scheduler, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func handleAddCron(s *scheduler.Scheduler, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	schedule := req.GetString("schedule", "")
 	message := req.GetString("message", "")
 	if schedule == "" {
@@ -69,7 +69,7 @@ func handleScheduleTask(s *scheduler.Scheduler, req mcp.CallToolRequest) (*mcp.C
 	return mcp.NewToolResultText(fmt.Sprintf("added cron %s", id)), nil
 }
 
-func handleListTasks(s *scheduler.Scheduler, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func handleListCrons(s *scheduler.Scheduler, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	jobs := s.List()
 	type row struct {
 		ID       string `json:"id"`
@@ -84,7 +84,7 @@ func handleListTasks(s *scheduler.Scheduler, _ mcp.CallToolRequest) (*mcp.CallTo
 	return mcp.NewToolResultText(string(out)), nil
 }
 
-func handleDeleteTask(s *scheduler.Scheduler, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func handleDeleteCron(s *scheduler.Scheduler, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	id := req.GetString("id", "")
 	if id == "" {
 		return nil, fmt.Errorf("id is required")

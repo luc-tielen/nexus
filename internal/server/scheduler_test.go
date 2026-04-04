@@ -9,11 +9,11 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-func TestHandleScheduleTask_Success(t *testing.T) {
+func TestHandleAddCron_Success(t *testing.T) {
 	s := scheduler.New(func(string) {}, scheduler.NoopStore())
 	defer s.Stop()
 
-	res, err := handleScheduleTask(s, toolReq(map[string]any{
+	res, err := handleAddCron(s, toolReq(map[string]any{
 		"schedule": "* * * * *",
 		"message":  "hello",
 	}))
@@ -25,31 +25,31 @@ func TestHandleScheduleTask_Success(t *testing.T) {
 	}
 }
 
-func TestHandleScheduleTask_MissingSchedule(t *testing.T) {
+func TestHandleAddCron_MissingSchedule(t *testing.T) {
 	s := scheduler.New(func(string) {}, scheduler.NoopStore())
 	defer s.Stop()
 
-	_, err := handleScheduleTask(s, toolReq(map[string]any{"message": "hello"}))
+	_, err := handleAddCron(s, toolReq(map[string]any{"message": "hello"}))
 	if err == nil {
 		t.Error("expected error for missing schedule")
 	}
 }
 
-func TestHandleScheduleTask_MissingMessage(t *testing.T) {
+func TestHandleAddCron_MissingMessage(t *testing.T) {
 	s := scheduler.New(func(string) {}, scheduler.NoopStore())
 	defer s.Stop()
 
-	_, err := handleScheduleTask(s, toolReq(map[string]any{"schedule": "* * * * *"}))
+	_, err := handleAddCron(s, toolReq(map[string]any{"schedule": "* * * * *"}))
 	if err == nil {
 		t.Error("expected error for missing message")
 	}
 }
 
-func TestHandleScheduleTask_InvalidSchedule(t *testing.T) {
+func TestHandleAddCron_InvalidSchedule(t *testing.T) {
 	s := scheduler.New(func(string) {}, scheduler.NoopStore())
 	defer s.Stop()
 
-	_, err := handleScheduleTask(s, toolReq(map[string]any{
+	_, err := handleAddCron(s, toolReq(map[string]any{
 		"schedule": "not-valid",
 		"message":  "hello",
 	}))
@@ -58,11 +58,11 @@ func TestHandleScheduleTask_InvalidSchedule(t *testing.T) {
 	}
 }
 
-func TestHandleListTasks_Empty(t *testing.T) {
+func TestHandleListCrons_Empty(t *testing.T) {
 	s := scheduler.New(func(string) {}, scheduler.NoopStore())
 	defer s.Stop()
 
-	res, err := handleListTasks(s, mcp.CallToolRequest{})
+	res, err := handleListCrons(s, mcp.CallToolRequest{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -75,12 +75,12 @@ func TestHandleListTasks_Empty(t *testing.T) {
 	}
 }
 
-func TestHandleListTasks_WithJobs(t *testing.T) {
+func TestHandleListCrons_WithJobs(t *testing.T) {
 	s := scheduler.New(func(string) {}, scheduler.NoopStore())
 	defer s.Stop()
 	_, _ = s.Add("* * * * *", "msg")
 
-	res, err := handleListTasks(s, mcp.CallToolRequest{})
+	res, err := handleListCrons(s, mcp.CallToolRequest{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -96,12 +96,12 @@ func TestHandleListTasks_WithJobs(t *testing.T) {
 	}
 }
 
-func TestHandleDeleteTask_Success(t *testing.T) {
+func TestHandleDeleteCron_Success(t *testing.T) {
 	s := scheduler.New(func(string) {}, scheduler.NoopStore())
 	defer s.Stop()
 	id, _ := s.Add("* * * * *", "msg")
 
-	res, err := handleDeleteTask(s, toolReq(map[string]any{"id": id}))
+	res, err := handleDeleteCron(s, toolReq(map[string]any{"id": id}))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -110,21 +110,21 @@ func TestHandleDeleteTask_Success(t *testing.T) {
 	}
 }
 
-func TestHandleDeleteTask_MissingID(t *testing.T) {
+func TestHandleDeleteCron_MissingID(t *testing.T) {
 	s := scheduler.New(func(string) {}, scheduler.NoopStore())
 	defer s.Stop()
 
-	_, err := handleDeleteTask(s, toolReq(map[string]any{}))
+	_, err := handleDeleteCron(s, toolReq(map[string]any{}))
 	if err == nil {
 		t.Error("expected error for missing id")
 	}
 }
 
-func TestHandleDeleteTask_NotFound(t *testing.T) {
+func TestHandleDeleteCron_NotFound(t *testing.T) {
 	s := scheduler.New(func(string) {}, scheduler.NoopStore())
 	defer s.Stop()
 
-	_, err := handleDeleteTask(s, toolReq(map[string]any{"id": "999"}))
+	_, err := handleDeleteCron(s, toolReq(map[string]any{"id": "999"}))
 	if err == nil {
 		t.Error("expected error for non-existent task")
 	}
