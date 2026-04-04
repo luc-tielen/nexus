@@ -18,9 +18,10 @@ import (
 // Wrapper manages a PTY-wrapped child process and supports injecting messages
 // into its stdin without clobbering in-progress user input.
 type Wrapper struct {
-	inject  chan string
-	mu      sync.Mutex
-	lineBuf []byte
+	inject       chan string
+	enterPressed chan struct{}
+	mu           sync.Mutex
+	lineBuf      []byte
 }
 
 // New creates a Wrapper ready to run a child process.
@@ -29,11 +30,13 @@ func New() *Wrapper {
 		// Buffer 8 so callers (e.g. the scheduler) don't block on a burst
 		// of injections while the pty goroutine is busy.
 		inject: make(chan string, 8),
+		// Buffer 1: one pending "user pressed enter" signal is enough.
+		enterPressed: make(chan struct{}, 1),
 	}
 }
 
-// Inject sends msg to Claude's stdin, saving and restoring any in-progress
-// user input around it.
+// Inject sends msg to Claude's stdin. If the user is currently typing,
+// the message is queued and fired after the next Enter press.
 func (w *Wrapper) Inject(msg string) {
 	w.inject <- msg
 }
@@ -49,6 +52,11 @@ func (w *Wrapper) trackInput(b []byte) {
 		switch ch {
 		case '\r', '\n':
 			w.lineBuf = w.lineBuf[:0]
+			// Signal the injection handler that the input line is now clear.
+			select {
+			case w.enterPressed <- struct{}{}:
+			default:
+			}
 			i++
 		case 0x7f, 0x08: // DEL / BS
 			if len(w.lineBuf) > 0 {
@@ -72,13 +80,9 @@ func (w *Wrapper) trackInput(b []byte) {
 	}
 }
 
-// doInject writes a clear-line escape, the message, and then replays any saved
-// keystrokes into dst (the pty master).
-func doInject(dst io.Writer, msg string, saved []byte) {
+// doInject writes a clear-line escape followed by the message to dst (the pty master).
+func doInject(dst io.Writer, msg string) {
 	_, _ = fmt.Fprintf(dst, "\r\x1b[2K%s\r", msg)
-	if len(saved) > 0 {
-		_, _ = dst.Write(saved)
-	}
 }
 
 // filterEnv returns a copy of env with any entry whose key is in exclude removed.
@@ -156,26 +160,28 @@ func (w *Wrapper) Run(ctx context.Context, path string, args []string, excludeEn
 		}
 	}()
 
-	// Injection handler: clears the current line, writes the message, then
-	// replays any buffered keystrokes so the user's in-progress input returns.
+	// Injection handler: fires scheduled messages immediately when the input
+	// line is clear, or queues them until the user's next Enter press.
 	go func() {
+		var pending []string
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case msg := <-w.inject:
 				w.mu.Lock()
-				saved := make([]byte, len(w.lineBuf))
-				copy(saved, w.lineBuf)
-				w.lineBuf = w.lineBuf[:0]
+				busy := len(w.lineBuf) > 0
 				w.mu.Unlock()
-
-				doInject(ptm, msg, saved)
-
-				if len(saved) > 0 {
-					w.mu.Lock()
-					w.lineBuf = append(saved, w.lineBuf...)
-					w.mu.Unlock()
+				if busy {
+					pending = append(pending, msg)
+				} else {
+					doInject(ptm, msg)
+				}
+			case <-w.enterPressed:
+				if len(pending) > 0 {
+					msg := pending[0]
+					pending = pending[1:]
+					doInject(ptm, msg)
 				}
 			}
 		}

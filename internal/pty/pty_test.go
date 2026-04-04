@@ -62,6 +62,11 @@ func TestTrackInput_EnterCR(t *testing.T) {
 	if len(w.lineBuf) != 0 {
 		t.Errorf("expected empty buf after CR, got %q", w.lineBuf)
 	}
+	select {
+	case <-w.enterPressed:
+	default:
+		t.Error("expected enterPressed signal after CR")
+	}
 }
 
 func TestTrackInput_EnterLF(t *testing.T) {
@@ -69,6 +74,11 @@ func TestTrackInput_EnterLF(t *testing.T) {
 	w.trackInput([]byte("hello\n"))
 	if len(w.lineBuf) != 0 {
 		t.Errorf("expected empty buf after LF, got %q", w.lineBuf)
+	}
+	select {
+	case <-w.enterPressed:
+	default:
+		t.Error("expected enterPressed signal after LF")
 	}
 }
 
@@ -154,29 +164,10 @@ func TestFilterEnv_EmptyEnv(t *testing.T) {
 
 // doInject tests
 
-func TestDoInject_NoSaved(t *testing.T) {
+func TestDoInject(t *testing.T) {
 	var buf bytes.Buffer
-	doInject(&buf, "alert: something happened", nil)
+	doInject(&buf, "alert: something happened")
 	want := "\r\x1b[2Kalert: something happened\r"
-	if buf.String() != want {
-		t.Errorf("got %q, want %q", buf.String(), want)
-	}
-}
-
-func TestDoInject_WithSaved(t *testing.T) {
-	var buf bytes.Buffer
-	doInject(&buf, "alert: something happened", []byte("partial inp"))
-	want := "\r\x1b[2Kalert: something happened\rpartial inp"
-	if buf.String() != want {
-		t.Errorf("got %q, want %q", buf.String(), want)
-	}
-}
-
-func TestDoInject_EmptySaved(t *testing.T) {
-	var buf bytes.Buffer
-	doInject(&buf, "msg", []byte{})
-	// empty saved should not write extra bytes
-	want := "\r\x1b[2Kmsg\r"
 	if buf.String() != want {
 		t.Errorf("got %q, want %q", buf.String(), want)
 	}
