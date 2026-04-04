@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/luc/nexus/internal/config"
 	"github.com/luc/nexus/internal/discord"
 	"github.com/luc/nexus/internal/install"
 	"github.com/luc/nexus/internal/pty"
@@ -23,7 +24,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "nexus: cannot determine home directory:", err)
 		os.Exit(1)
 	}
-	dbDir := filepath.Join(homeDir, ".nexus-ai")
+	dbDir := filepath.Join(homeDir, ".config", "nexus-ai")
 	if err := os.MkdirAll(dbDir, 0o700); err != nil {
 		fmt.Fprintln(os.Stderr, "nexus: cannot create data directory:", err)
 		os.Exit(1)
@@ -102,7 +103,14 @@ func main() {
 	}
 	defer shutdown()
 
-	if err := w.Run(ctx, claude, os.Args[1:], secretStore.Keys()); err != nil {
+	cfg, err := config.Load(dbDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "nexus: loading config:", err)
+		os.Exit(1)
+	}
+	claudeArgs := append(cfg.ClaudeArgs, os.Args[1:]...)
+
+	if err := w.Run(ctx, claude, claudeArgs, secretStore.Keys()); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			os.Exit(exitErr.ExitCode())
 		}
