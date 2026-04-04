@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"time"
 
 	"github.com/luc/nexus/internal/discord"
 	"github.com/luc/nexus/internal/install"
@@ -14,17 +13,6 @@ import (
 	"github.com/luc/nexus/internal/server"
 	"github.com/luc/nexus/internal/todoist"
 )
-
-func runDaemon(ctx context.Context, w *pty.Wrapper) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(time.Second):
-			_ = os.WriteFile("/tmp/date.txt", []byte(time.Now().String()), 0o644)
-		}
-	}
-}
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "install" {
@@ -66,8 +54,6 @@ func main() {
 		os.Exit(1)
 	}
 	defer shutdown()
-
-	go runDaemon(ctx, w)
 
 	if err := w.Run(ctx, claude, os.Args[1:]); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
