@@ -5,22 +5,34 @@ description: Remove or complete a to-do item from Todoist. Use this skill whenev
 
 # Todo Delete Skill
 
-Closes (completes) a task in Todoist using `list_todoist_tasks` and `close_todoist_task` MCP tools.
+Completes a task in Todoist using the `list_todoist_tasks` and `complete_todoist_task` MCP tools.
+
+Supports two lookup modes:
+- **By name** (default): list tasks, find the closest match, confirm with user before acting.
+- **By ID**: skip listing, confirm with user before acting.
 
 ## Steps
 
-1. Call `list_todoist_tasks` to get all active tasks. If the result is empty, tell the user there are no active to-dos and stop.
-2. Find the task(s) that best match the description the user gave. Use partial/fuzzy matching — the user won't always quote the item exactly. Case-insensitive matching is fine.
-3. If exactly one match is found: call `close_todoist_task` with its `id` and confirm to the user, quoting the task content.
-4. If multiple matches are found: show the user the matches and ask them to clarify which one they mean. Don't close anything yet.
-5. If no match is found: tell the user no matching to-do was found and show them the current list so they can pick one.
+### Deleting by name (default)
 
-## Example
+1. Call `list_todoist_tasks` to retrieve all active tasks. If the result is empty, tell the user there are no active to-dos and stop.
+2. Find the task(s) that best match the name the user provided. Use partial/fuzzy, case-insensitive matching — the user won't always quote the item exactly.
+3. If exactly one match is found: show the task name and details to the user and ask for confirmation before proceeding. Only call `complete_todoist_task` once the user confirms.
+4. If multiple matches are found: show the matches and ask the user to clarify which one they mean. Do not delete anything yet.
+5. If no match is found: tell the user and show the current task list so they can pick one.
+
+### Deleting by ID
+
+1. If the user explicitly provides a task ID, skip the listing step.
+2. Show the task ID (and any other known details) to the user and ask for confirmation before proceeding.
+3. Only call `complete_todoist_task` once the user confirms.
+
+## Confirmation rule
+
+**Always ask for confirmation before any deletion.** The confirmation prompt must include the task name/content so the user knows exactly what will be removed.
+
+## Example — by name
 
 Active tasks: `[{"id":"1","content":"write unit tests"},{"id":"2","content":"update README"}]`
 
 User: "remove the to-do about unit tests"
-
-Tool call: `close_todoist_task` with `id = "1"`
-
-Response: "Done: write unit tests"
