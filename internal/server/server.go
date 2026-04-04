@@ -22,7 +22,7 @@ func New(w *pty.Wrapper, s *scheduler.Scheduler, dc *discord.Client, tgc *telegr
 	registerSchedulerTools(srv, s)
 	registerDiscordTools(srv, dc)
 	registerTelegramTools(srv, tgc)
-	registerTodoistTools(srv, tc)
+	registerTodoTools(srv, tc)
 
 	_ = w // reserved for future tools that need the wrapper
 	return mcpserver.NewStreamableHTTPServer(srv)

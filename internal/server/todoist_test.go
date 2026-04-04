@@ -24,21 +24,21 @@ func newTodoistClientWithHandler(t *testing.T, h http.HandlerFunc) *todoist.Clie
 	return todoist.NewClientWithHTTP("testkey", srv.Client(), srv.URL)
 }
 
-func TestHandleListTodoistTasks_NilClient(t *testing.T) {
-	_, err := handleListTodoistTasks(nil, toolReq(nil))
+func TestHandleListTodoTasks_NilClient(t *testing.T) {
+	_, err := handleListTodoTasks(nil, toolReq(nil))
 	if err == nil {
 		t.Error("expected error when client is nil")
 	}
 }
 
-func TestHandleListTodoistTasks_Empty(t *testing.T) {
+func TestHandleListTodoTasks_Empty(t *testing.T) {
 	tc := newTodoistClientWithHandler(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"results":[]}`))
 	})
 
-	res, err := handleListTodoistTasks(tc, toolReq(nil))
+	res, err := handleListTodoTasks(tc, toolReq(nil))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -47,14 +47,14 @@ func TestHandleListTodoistTasks_Empty(t *testing.T) {
 	}
 }
 
-func TestHandleListTodoistTasks_Success(t *testing.T) {
+func TestHandleListTodoTasks_Success(t *testing.T) {
 	tc := newTodoistClientWithHandler(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"results":[{"id":"1","content":"buy milk"}]}`))
 	})
 
-	res, err := handleListTodoistTasks(tc, toolReq(nil))
+	res, err := handleListTodoTasks(tc, toolReq(nil))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -63,35 +63,35 @@ func TestHandleListTodoistTasks_Success(t *testing.T) {
 	}
 }
 
-func TestHandleListTodoistTasks_APIError(t *testing.T) {
+func TestHandleListTodoTasks_APIError(t *testing.T) {
 	tc := newTodoistClient(t, http.StatusUnauthorized)
 
-	_, err := handleListTodoistTasks(tc, toolReq(nil))
+	_, err := handleListTodoTasks(tc, toolReq(nil))
 	if err == nil {
 		t.Error("expected error for API failure")
 	}
 }
 
-func TestHandleCompleteTodoistTask_NilClient(t *testing.T) {
-	_, err := handleCompleteTodoistTask(nil, toolReq(map[string]any{"task_id": "1"}))
+func TestHandleCompleteTodoTask_NilClient(t *testing.T) {
+	_, err := handleCompleteTodoTask(nil, toolReq(map[string]any{"task_id": "1"}))
 	if err == nil {
 		t.Error("expected error when client is nil")
 	}
 }
 
-func TestHandleCompleteTodoistTask_MissingTaskID(t *testing.T) {
+func TestHandleCompleteTodoTask_MissingTaskID(t *testing.T) {
 	tc := newTodoistClient(t, http.StatusNoContent)
 
-	_, err := handleCompleteTodoistTask(tc, toolReq(map[string]any{}))
+	_, err := handleCompleteTodoTask(tc, toolReq(map[string]any{}))
 	if err == nil {
 		t.Error("expected error for missing task_id")
 	}
 }
 
-func TestHandleCompleteTodoistTask_Success(t *testing.T) {
+func TestHandleCompleteTodoTask_Success(t *testing.T) {
 	tc := newTodoistClient(t, http.StatusNoContent)
 
-	res, err := handleCompleteTodoistTask(tc, toolReq(map[string]any{"task_id": "42"}))
+	res, err := handleCompleteTodoTask(tc, toolReq(map[string]any{"task_id": "42"}))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -100,35 +100,35 @@ func TestHandleCompleteTodoistTask_Success(t *testing.T) {
 	}
 }
 
-func TestHandleCompleteTodoistTask_APIError(t *testing.T) {
+func TestHandleCompleteTodoTask_APIError(t *testing.T) {
 	tc := newTodoistClient(t, http.StatusNotFound)
 
-	_, err := handleCompleteTodoistTask(tc, toolReq(map[string]any{"task_id": "99"}))
+	_, err := handleCompleteTodoTask(tc, toolReq(map[string]any{"task_id": "99"}))
 	if err == nil {
 		t.Error("expected error for API failure")
 	}
 }
 
-func TestHandleCreateTodoistTask_NilClient(t *testing.T) {
-	_, err := handleCreateTodoistTask(nil, toolReq(map[string]any{"content": "buy milk"}))
+func TestHandleCreateTodoTask_NilClient(t *testing.T) {
+	_, err := handleCreateTodoTask(nil, toolReq(map[string]any{"content": "buy milk"}))
 	if err == nil {
 		t.Error("expected error when client is nil")
 	}
 }
 
-func TestHandleCreateTodoistTask_MissingContent(t *testing.T) {
+func TestHandleCreateTodoTask_MissingContent(t *testing.T) {
 	tc := newTodoistClient(t, http.StatusOK)
 
-	_, err := handleCreateTodoistTask(tc, toolReq(map[string]any{}))
+	_, err := handleCreateTodoTask(tc, toolReq(map[string]any{}))
 	if err == nil {
 		t.Error("expected error for missing content")
 	}
 }
 
-func TestHandleCreateTodoistTask_Success(t *testing.T) {
+func TestHandleCreateTodoTask_Success(t *testing.T) {
 	tc := newTodoistClient(t, http.StatusOK)
 
-	res, err := handleCreateTodoistTask(tc, toolReq(map[string]any{"content": "buy milk"}))
+	res, err := handleCreateTodoTask(tc, toolReq(map[string]any{"content": "buy milk"}))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -137,10 +137,10 @@ func TestHandleCreateTodoistTask_Success(t *testing.T) {
 	}
 }
 
-func TestHandleCreateTodoistTask_APIError(t *testing.T) {
+func TestHandleCreateTodoTask_APIError(t *testing.T) {
 	tc := newTodoistClient(t, http.StatusUnauthorized)
 
-	_, err := handleCreateTodoistTask(tc, toolReq(map[string]any{"content": "buy milk"}))
+	_, err := handleCreateTodoTask(tc, toolReq(map[string]any{"content": "buy milk"}))
 	if err == nil {
 		t.Error("expected error for API failure")
 	}
