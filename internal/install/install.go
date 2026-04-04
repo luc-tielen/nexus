@@ -8,11 +8,15 @@ import (
 	"path/filepath"
 )
 
-// SettingsPath is resolved relative to the user's home directory at runtime.
-const SettingsPath = ".claude/settings.json"
+// SettingsPath is the Claude Code user config file, resolved relative to the
+// user's home directory at runtime.
+const SettingsPath = ".claude.json"
 
 // MCPBaseURL is the base URL the nexus MCP server listens on.
 const MCPBaseURL = "http://localhost:7744"
+
+// MCPEndpoint is the MCP endpoint Claude Code connects to.
+const MCPEndpoint = MCPBaseURL + "/mcp"
 
 type mcpServerConfig struct {
 	Type string `json:"type"`
@@ -57,8 +61,8 @@ func (s settings) MarshalJSON() ([]byte, error) {
 	return json.Marshal(out)
 }
 
-// Install writes the nexus MCP server entry into .claude/settings.json in the
-// current directory, creating the file if it does not exist.
+// Install writes the nexus MCP server entry into ~/.claude.json,
+// creating the file if it does not exist.
 func Install() error {
 	data, err := readSettings()
 	if err != nil {
@@ -70,7 +74,7 @@ func Install() error {
 	}
 	data.MCPServers["nexus"] = mcpServerConfig{
 		Type: "http",
-		URL:  MCPBaseURL + "/mcp",
+		URL:  MCPEndpoint,
 	}
 
 	if err := writeSettings(data); err != nil {
@@ -114,9 +118,6 @@ func writeSettings(data settings) error {
 	path, err := settingsPath()
 	if err != nil {
 		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("creating %s: %w", filepath.Dir(path), err)
 	}
 
 	out, err := json.MarshalIndent(data, "", "  ")

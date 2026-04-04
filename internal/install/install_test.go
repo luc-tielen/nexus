@@ -124,8 +124,7 @@ func assertMCPEntry(t *testing.T, data settings) {
 	if nexus.Type != "http" {
 		t.Errorf("type = %q, want %q", nexus.Type, "http")
 	}
-	wantURL := MCPBaseURL + "/mcp"
-	if nexus.URL != wantURL {
-		t.Errorf("url = %q, want %q", nexus.URL, wantURL)
+	if nexus.URL != MCPEndpoint {
+		t.Errorf("url = %q, want %q", nexus.URL, MCPEndpoint)
 	}
 }
