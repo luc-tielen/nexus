@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/google/uuid"
@@ -73,7 +74,7 @@ func (s *Scheduler) Load() error {
 		msg := j.Message // capture loop variable by value
 		entryID, err := s.c.AddFunc(j.Schedule, func() { s.inject(msg) })
 		if err != nil {
-			// Persisted schedule is no longer valid; skip it.
+			fmt.Fprintf(os.Stderr, "nexus: scheduler: skipping persisted job %s (schedule %q): %v\n", j.ID, j.Schedule, err)
 			continue
 		}
 		s.mu.Lock()
