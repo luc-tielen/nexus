@@ -68,8 +68,8 @@ func Install() error {
 		data.MCPServers = map[string]mcpServerConfig{}
 	}
 	data.MCPServers["nexus"] = mcpServerConfig{
-		Type: "sse",
-		URL:  MCPBaseURL + "/sse",
+		Type: "http",
+		URL:  MCPBaseURL + "/mcp",
 	}
 
 	if err := writeSettings(data); err != nil {

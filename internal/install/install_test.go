@@ -133,10 +133,10 @@ func assertMCPEntry(t *testing.T, data settings) {
 	if !ok {
 		t.Fatal("mcpServers.nexus missing")
 	}
-	if nexus.Type != "sse" {
-		t.Errorf("type = %q, want %q", nexus.Type, "sse")
+	if nexus.Type != "http" {
+		t.Errorf("type = %q, want %q", nexus.Type, "http")
 	}
-	wantURL := MCPBaseURL + "/sse"
+	wantURL := MCPBaseURL + "/mcp"
 	if nexus.URL != wantURL {
 		t.Errorf("url = %q, want %q", nexus.URL, wantURL)
 	}

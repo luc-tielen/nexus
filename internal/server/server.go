@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/luc/nexus/internal/discord"
-	"github.com/luc/nexus/internal/install"
 	"github.com/luc/nexus/internal/pty"
 	"github.com/luc/nexus/internal/scheduler"
 	"github.com/luc/nexus/internal/todoist"
@@ -19,7 +18,7 @@ const mcpPort = "7744"
 const mcpAddr = ":" + mcpPort
 
 // New creates the MCP server and registers all tools.
-func New(w *pty.Wrapper, s *scheduler.Scheduler, dc *discord.Client, tc *todoist.Client) *mcpserver.SSEServer {
+func New(w *pty.Wrapper, s *scheduler.Scheduler, dc *discord.Client, tc *todoist.Client) *mcpserver.StreamableHTTPServer {
 	srv := mcpserver.NewMCPServer("nexus", "0.1.0")
 
 	srv.AddTool(
@@ -101,7 +100,7 @@ func New(w *pty.Wrapper, s *scheduler.Scheduler, dc *discord.Client, tc *todoist
 	)
 
 	_ = w // reserved for future tools that need the wrapper
-	return mcpserver.NewSSEServer(srv, mcpserver.WithBaseURL(install.MCPBaseURL))
+	return mcpserver.NewStreamableHTTPServer(srv)
 }
 
 func handleGetTime(_ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -178,7 +177,7 @@ func handleCreateTodoistTask(tc *todoist.Client, req mcp.CallToolRequest) (*mcp.
 	return mcp.NewToolResultText("task created"), nil
 }
 
-// Start launches the SSE server in the background and returns a shutdown
+// Start launches the MCP server in the background and returns a shutdown
 // function. It blocks briefly until the server is ready.
 func Start(ctx context.Context, w *pty.Wrapper, s *scheduler.Scheduler, dc *discord.Client, tc *todoist.Client) (shutdown func(), err error) {
 	srv := New(w, s, dc, tc)
