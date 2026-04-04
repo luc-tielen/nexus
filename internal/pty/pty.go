@@ -101,6 +101,10 @@ func (w *Wrapper) Run(ctx context.Context, path string, args []string) error {
 	}
 	sigwinch := make(chan os.Signal, 1)
 	signal.Notify(sigwinch, syscall.SIGWINCH)
+	defer func() {
+		signal.Stop(sigwinch)
+		close(sigwinch)
+	}()
 	go func() {
 		for range sigwinch {
 			if sz, err := pty.GetsizeFull(os.Stdin); err == nil {
