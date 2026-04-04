@@ -46,7 +46,7 @@ func TestHandleGetTime(t *testing.T) {
 // --- schedule_task ---
 
 func TestHandleScheduleTask_Success(t *testing.T) {
-	s := scheduler.New(func(string) {})
+	s := scheduler.New(func(string) {}, scheduler.NoopStore())
 	defer s.Stop()
 
 	res, err := handleScheduleTask(s, toolReq(map[string]any{
@@ -62,7 +62,7 @@ func TestHandleScheduleTask_Success(t *testing.T) {
 }
 
 func TestHandleScheduleTask_MissingSchedule(t *testing.T) {
-	s := scheduler.New(func(string) {})
+	s := scheduler.New(func(string) {}, scheduler.NoopStore())
 	defer s.Stop()
 
 	_, err := handleScheduleTask(s, toolReq(map[string]any{"message": "hello"}))
@@ -72,7 +72,7 @@ func TestHandleScheduleTask_MissingSchedule(t *testing.T) {
 }
 
 func TestHandleScheduleTask_MissingMessage(t *testing.T) {
-	s := scheduler.New(func(string) {})
+	s := scheduler.New(func(string) {}, scheduler.NoopStore())
 	defer s.Stop()
 
 	_, err := handleScheduleTask(s, toolReq(map[string]any{"schedule": "* * * * *"}))
@@ -82,7 +82,7 @@ func TestHandleScheduleTask_MissingMessage(t *testing.T) {
 }
 
 func TestHandleScheduleTask_InvalidSchedule(t *testing.T) {
-	s := scheduler.New(func(string) {})
+	s := scheduler.New(func(string) {}, scheduler.NoopStore())
 	defer s.Stop()
 
 	_, err := handleScheduleTask(s, toolReq(map[string]any{
@@ -97,7 +97,7 @@ func TestHandleScheduleTask_InvalidSchedule(t *testing.T) {
 // --- list_tasks ---
 
 func TestHandleListTasks_Empty(t *testing.T) {
-	s := scheduler.New(func(string) {})
+	s := scheduler.New(func(string) {}, scheduler.NoopStore())
 	defer s.Stop()
 
 	res, err := handleListTasks(s, mcp.CallToolRequest{})
@@ -114,7 +114,7 @@ func TestHandleListTasks_Empty(t *testing.T) {
 }
 
 func TestHandleListTasks_WithJobs(t *testing.T) {
-	s := scheduler.New(func(string) {})
+	s := scheduler.New(func(string) {}, scheduler.NoopStore())
 	defer s.Stop()
 	_, _ = s.Add("* * * * *", "msg")
 
@@ -137,7 +137,7 @@ func TestHandleListTasks_WithJobs(t *testing.T) {
 // --- delete_task ---
 
 func TestHandleDeleteTask_Success(t *testing.T) {
-	s := scheduler.New(func(string) {})
+	s := scheduler.New(func(string) {}, scheduler.NoopStore())
 	defer s.Stop()
 	id, _ := s.Add("* * * * *", "msg")
 
@@ -151,7 +151,7 @@ func TestHandleDeleteTask_Success(t *testing.T) {
 }
 
 func TestHandleDeleteTask_MissingID(t *testing.T) {
-	s := scheduler.New(func(string) {})
+	s := scheduler.New(func(string) {}, scheduler.NoopStore())
 	defer s.Stop()
 
 	_, err := handleDeleteTask(s, toolReq(map[string]any{}))
@@ -161,7 +161,7 @@ func TestHandleDeleteTask_MissingID(t *testing.T) {
 }
 
 func TestHandleDeleteTask_NotFound(t *testing.T) {
-	s := scheduler.New(func(string) {})
+	s := scheduler.New(func(string) {}, scheduler.NoopStore())
 	defer s.Stop()
 
 	_, err := handleDeleteTask(s, toolReq(map[string]any{"id": "999"}))

@@ -2,11 +2,31 @@ package scheduler
 
 import (
 	"fmt"
-	"strconv"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
 )
+
+// Store persists scheduled jobs across restarts.
+type Store interface {
+	Add(id, schedule, message string) error
+	Delete(id string) error
+	List() ([]storedJob, error)
+}
+
+type storedJob struct {
+	ID, Schedule, Message string
+}
+
+type noopStore struct{}
+
+func (noopStore) Add(_, _, _ string) error   { return nil }
+func (noopStore) Delete(_ string) error      { return nil }
+func (noopStore) List() ([]storedJob, error) { return nil, nil }
+
+// NoopStore returns a Store that discards all operations. Use in tests.
+func NoopStore() Store { return noopStore{} }
 
 // Job holds the metadata for a single scheduled task.
 type Job struct {
@@ -22,33 +42,67 @@ type Job struct {
 type Scheduler struct {
 	c      *cron.Cron
 	inject func(string)
+	store  Store
 	mu     sync.Mutex
 	jobs   map[string]Job
 }
 
 // New creates a started Scheduler that calls inject whenever a job fires.
-func New(inject func(string)) *Scheduler {
+// Pass noopStore{} when persistence is not needed (e.g. in tests).
+func New(inject func(string), store Store) *Scheduler {
 	s := &Scheduler{
 		c:      cron.New(),
 		inject: inject,
+		store:  store,
 		jobs:   make(map[string]Job),
 	}
 	s.c.Start()
 	return s
 }
 
+// Load reads persisted jobs from the store and re-registers them with cron.
+// Call once after New, before the server starts handling requests. Jobs that
+// were missed since the last run are not replayed — they simply resume firing
+// on their next scheduled time.
+func (s *Scheduler) Load() error {
+	jobs, err := s.store.List()
+	if err != nil {
+		return fmt.Errorf("scheduler: loading persisted jobs: %w", err)
+	}
+	for _, j := range jobs {
+		msg := j.Message // capture loop variable by value
+		entryID, err := s.c.AddFunc(j.Schedule, func() { s.inject(msg) })
+		if err != nil {
+			// Persisted schedule is no longer valid; skip it.
+			continue
+		}
+		s.mu.Lock()
+		s.jobs[j.ID] = Job{
+			ID:       j.ID,
+			Schedule: j.Schedule,
+			Message:  j.Message,
+			entryID:  entryID,
+		}
+		s.mu.Unlock()
+	}
+	return nil
+}
+
 // Add schedules a new task. schedule must be a valid 5-field cron expression
 // (e.g. "*/5 * * * *") or a robfig/cron descriptor like "@every 30s".
 // Returns the task ID.
 func (s *Scheduler) Add(schedule, message string) (string, error) {
+	id := uuid.New().String()
 	entryID, err := s.c.AddFunc(schedule, func() {
 		s.inject(message)
 	})
 	if err != nil {
 		return "", fmt.Errorf("invalid schedule %q: %w", schedule, err)
 	}
-
-	id := strconv.Itoa(int(entryID))
+	if err := s.store.Add(id, schedule, message); err != nil {
+		s.c.Remove(entryID)
+		return "", err
+	}
 	s.mu.Lock()
 	s.jobs[id] = Job{
 		ID:       id,
@@ -79,10 +133,12 @@ func (s *Scheduler) Delete(id string) bool {
 		delete(s.jobs, id)
 	}
 	s.mu.Unlock()
-	if ok {
-		s.c.Remove(job.entryID)
+	if !ok {
+		return false
 	}
-	return ok
+	s.c.Remove(job.entryID)
+	_ = s.store.Delete(id)
+	return true
 }
 
 // Stop halts the underlying cron runner.

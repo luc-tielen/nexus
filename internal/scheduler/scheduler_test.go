@@ -7,7 +7,7 @@ import (
 )
 
 func TestScheduler_AddValidSchedule(t *testing.T) {
-	s := New(func(string) {})
+	s := New(func(string) {}, noopStore{})
 	defer s.Stop()
 
 	id, err := s.Add("* * * * *", "hello")
@@ -20,7 +20,7 @@ func TestScheduler_AddValidSchedule(t *testing.T) {
 }
 
 func TestScheduler_AddInvalidSchedule(t *testing.T) {
-	s := New(func(string) {})
+	s := New(func(string) {}, noopStore{})
 	defer s.Stop()
 
 	_, err := s.Add("not-a-cron", "hello")
@@ -30,7 +30,7 @@ func TestScheduler_AddInvalidSchedule(t *testing.T) {
 }
 
 func TestScheduler_List(t *testing.T) {
-	s := New(func(string) {})
+	s := New(func(string) {}, noopStore{})
 	defer s.Stop()
 
 	if jobs := s.List(); len(jobs) != 0 {
@@ -54,7 +54,7 @@ func TestScheduler_List(t *testing.T) {
 }
 
 func TestScheduler_Delete(t *testing.T) {
-	s := New(func(string) {})
+	s := New(func(string) {}, noopStore{})
 	defer s.Stop()
 
 	id, _ := s.Add("* * * * *", "hello")
@@ -68,7 +68,7 @@ func TestScheduler_Delete(t *testing.T) {
 }
 
 func TestScheduler_DeleteNonExistent(t *testing.T) {
-	s := New(func(string) {})
+	s := New(func(string) {}, noopStore{})
 	defer s.Stop()
 
 	if s.Delete("999") {
@@ -84,7 +84,7 @@ func TestScheduler_Fires(t *testing.T) {
 		mu.Lock()
 		received = append(received, msg)
 		mu.Unlock()
-	})
+	}, noopStore{})
 	defer s.Stop()
 
 	_, err := s.Add("@every 1s", "tick")
@@ -116,7 +116,7 @@ func TestScheduler_DeleteStopsFiring(t *testing.T) {
 		mu.Lock()
 		count++
 		mu.Unlock()
-	})
+	}, noopStore{})
 	defer s.Stop()
 
 	id, _ := s.Add("@every 1s", "tick")

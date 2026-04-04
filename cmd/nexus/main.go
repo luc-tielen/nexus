@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/luc/nexus/internal/discord"
 	"github.com/luc/nexus/internal/install"
@@ -29,12 +30,33 @@ func main() {
 		os.Exit(1)
 	}
 
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "nexus: cannot determine home directory:", err)
+		os.Exit(1)
+	}
+	dbDir := filepath.Join(homeDir, ".nexus-ai")
+	if err := os.MkdirAll(dbDir, 0o700); err != nil {
+		fmt.Fprintln(os.Stderr, "nexus: cannot create data directory:", err)
+		os.Exit(1)
+	}
+	store, closeDB, err := scheduler.OpenStore(filepath.Join(dbDir, "sqlite.db"))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "nexus: opening schedule store:", err)
+		os.Exit(1)
+	}
+	defer func() { _ = closeDB.Close() }()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	w := pty.New()
-	s := scheduler.New(w.Inject)
+	s := scheduler.New(w.Inject, store)
 	defer s.Stop()
+
+	if err := s.Load(); err != nil {
+		fmt.Fprintln(os.Stderr, "nexus: loading scheduled jobs:", err)
+	}
 
 	dc, err := discord.NewClient()
 	if err != nil {
