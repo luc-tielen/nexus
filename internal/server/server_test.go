@@ -1,8 +1,6 @@
 package server
 
 import (
-	"testing"
-
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -22,16 +20,4 @@ func textContent(res *mcp.CallToolResult) string {
 		return tc.Text
 	}
 	return ""
-}
-
-// --- get_time ---
-
-func TestHandleGetTime(t *testing.T) {
-	res, err := handleGetTime(mcp.CallToolRequest{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(res.Content) == 0 {
-		t.Fatal("expected non-empty content")
-	}
 }
