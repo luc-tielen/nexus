@@ -12,10 +12,10 @@ import (
 
 func registerSchedulerTools(srv *mcpserver.MCPServer, s *scheduler.Scheduler) {
 	srv.AddTool(
-		mcp.NewTool("schedule_task",
+		mcp.NewTool("add_cron",
 			mcp.WithDescription("Schedule a recurring task using a cron expression. "+
 				"Accepts standard 5-field expressions ('*/5 * * * *') or descriptors "+
-				"like '@hourly' and '@every 30m'. Returns the task ID."),
+				"like '@hourly' and '@every 30m'. Returns the cron ID."),
 			mcp.WithString("schedule",
 				mcp.Required(),
 				mcp.Description("Cron expression, e.g. '0 9 * * 1-5' for weekdays at 9am."),
@@ -31,8 +31,8 @@ func registerSchedulerTools(srv *mcpserver.MCPServer, s *scheduler.Scheduler) {
 	)
 
 	srv.AddTool(
-		mcp.NewTool("list_tasks",
-			mcp.WithDescription("List all currently scheduled tasks."),
+		mcp.NewTool("list_crons",
+			mcp.WithDescription("List all currently scheduled cron jobs."),
 		),
 		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return handleListTasks(s, req)
@@ -40,11 +40,11 @@ func registerSchedulerTools(srv *mcpserver.MCPServer, s *scheduler.Scheduler) {
 	)
 
 	srv.AddTool(
-		mcp.NewTool("delete_task",
-			mcp.WithDescription("Delete a scheduled task by ID."),
+		mcp.NewTool("delete_cron",
+			mcp.WithDescription("Delete a scheduled cron job by ID."),
 			mcp.WithString("id",
 				mcp.Required(),
-				mcp.Description("Task ID returned by schedule_task."),
+				mcp.Description("Cron ID returned by add_cron."),
 			),
 		),
 		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -66,7 +66,7 @@ func handleScheduleTask(s *scheduler.Scheduler, req mcp.CallToolRequest) (*mcp.C
 	if err != nil {
 		return nil, err
 	}
-	return mcp.NewToolResultText(fmt.Sprintf("scheduled task %s", id)), nil
+	return mcp.NewToolResultText(fmt.Sprintf("added cron %s", id)), nil
 }
 
 func handleListTasks(s *scheduler.Scheduler, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -92,5 +92,5 @@ func handleDeleteTask(s *scheduler.Scheduler, req mcp.CallToolRequest) (*mcp.Cal
 	if !s.Delete(id) {
 		return nil, fmt.Errorf("task %s not found", id)
 	}
-	return mcp.NewToolResultText(fmt.Sprintf("deleted task %s", id)), nil
+	return mcp.NewToolResultText(fmt.Sprintf("deleted cron %s", id)), nil
 }

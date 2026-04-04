@@ -20,7 +20,7 @@ func TestHandleScheduleTask_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.HasPrefix(textContent(res), "scheduled task ") {
+	if !strings.HasPrefix(textContent(res), "added cron ") {
 		t.Errorf("unexpected result: %s", textContent(res))
 	}
 }
