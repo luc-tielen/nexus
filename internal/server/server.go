@@ -7,6 +7,7 @@ import (
 	"github.com/luc/nexus/internal/discord"
 	"github.com/luc/nexus/internal/pty"
 	"github.com/luc/nexus/internal/scheduler"
+	"github.com/luc/nexus/internal/telegram"
 	"github.com/luc/nexus/internal/todoist"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 )
@@ -15,11 +16,12 @@ const mcpPort = "7744"
 const mcpAddr = ":" + mcpPort
 
 // New creates the MCP server and registers all tools.
-func New(w *pty.Wrapper, s *scheduler.Scheduler, dc *discord.Client, tc *todoist.Client) *mcpserver.StreamableHTTPServer {
+func New(w *pty.Wrapper, s *scheduler.Scheduler, dc *discord.Client, tgc *telegram.Client, tc *todoist.Client) *mcpserver.StreamableHTTPServer {
 	srv := mcpserver.NewMCPServer("nexus", "0.1.0")
 
 	registerSchedulerTools(srv, s)
 	registerDiscordTools(srv, dc)
+	registerTelegramTools(srv, tgc)
 	registerTodoistTools(srv, tc)
 
 	_ = w // reserved for future tools that need the wrapper
@@ -28,8 +30,8 @@ func New(w *pty.Wrapper, s *scheduler.Scheduler, dc *discord.Client, tc *todoist
 
 // Start launches the MCP server in the background and returns a shutdown
 // function. It blocks briefly until the server is ready.
-func Start(ctx context.Context, w *pty.Wrapper, s *scheduler.Scheduler, dc *discord.Client, tc *todoist.Client) (shutdown func(), err error) {
-	srv := New(w, s, dc, tc)
+func Start(ctx context.Context, w *pty.Wrapper, s *scheduler.Scheduler, dc *discord.Client, tgc *telegram.Client, tc *todoist.Client) (shutdown func(), err error) {
+	srv := New(w, s, dc, tgc, tc)
 
 	errCh := make(chan error, 1)
 	go func() {

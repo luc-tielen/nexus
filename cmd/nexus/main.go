@@ -13,6 +13,7 @@ import (
 	"github.com/luc/nexus/internal/scheduler"
 	"github.com/luc/nexus/internal/secrets"
 	"github.com/luc/nexus/internal/server"
+	"github.com/luc/nexus/internal/telegram"
 	"github.com/luc/nexus/internal/todoist"
 )
 
@@ -79,6 +80,14 @@ func main() {
 		dc = nil
 	}
 
+	telegramToken, _ := secretStore.Get("TELEGRAM_BOT_TOKEN")
+	telegramChat, _ := secretStore.Get("TELEGRAM_CHAT_ID")
+	tgc, err := telegram.NewClient(telegramToken, telegramChat)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "nexus: Telegram not configured:", err)
+		tgc = nil
+	}
+
 	todoistKey, _ := secretStore.Get("TODOIST_API_KEY")
 	tc, err := todoist.NewClient(todoistKey)
 	if err != nil {
@@ -86,7 +95,7 @@ func main() {
 		tc = nil
 	}
 
-	shutdown, err := server.Start(ctx, w, s, dc, tc)
+	shutdown, err := server.Start(ctx, w, s, dc, tgc, tc)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "nexus: MCP server failed to start:", err)
 		os.Exit(1)
