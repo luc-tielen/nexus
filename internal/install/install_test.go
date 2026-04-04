@@ -34,12 +34,8 @@ func TestInstall_Idempotent(t *testing.T) {
 	assertMCPEntry(t, data)
 
 	// mcpServers must have exactly one entry.
-	mcpServers, ok := data["mcpServers"].(map[string]any)
-	if !ok {
-		t.Fatal("mcpServers is not an object")
-	}
-	if len(mcpServers) != 1 {
-		t.Errorf("expected 1 mcpServer entry, got %d", len(mcpServers))
+	if len(data.MCPServers) != 1 {
+		t.Errorf("expected 1 mcpServer entry, got %d", len(data.MCPServers))
 	}
 }
 
@@ -48,9 +44,10 @@ func TestInstall_PreservesExistingContent(t *testing.T) {
 	chdir(t, dir)
 
 	// Write a settings.json that already has hooks config.
-	existing := map[string]any{
-		"hooks": map[string]any{
-			"Stop": []any{"some-hook"},
+	hooksJSON, _ := json.Marshal(map[string]any{"Stop": []any{"some-hook"}})
+	existing := settings{
+		Extra: map[string]json.RawMessage{
+			"hooks": hooksJSON,
 		},
 	}
 	writeSettingsFile(t, dir, existing)
@@ -63,7 +60,7 @@ func TestInstall_PreservesExistingContent(t *testing.T) {
 	assertMCPEntry(t, data)
 
 	// Existing hooks must be preserved.
-	if _, ok := data["hooks"]; !ok {
+	if _, ok := data.Extra["hooks"]; !ok {
 		t.Error("install removed existing hooks key")
 	}
 }
@@ -72,9 +69,9 @@ func TestInstall_PreservesExistingMCPServers(t *testing.T) {
 	dir := t.TempDir()
 	chdir(t, dir)
 
-	existing := map[string]any{
-		"mcpServers": map[string]any{
-			"other": map[string]any{"type": "sse", "url": "http://example.com/sse"},
+	existing := settings{
+		MCPServers: map[string]mcpServerConfig{
+			"other": {Type: "sse", URL: "http://example.com/sse"},
 		},
 	}
 	writeSettingsFile(t, dir, existing)
@@ -86,8 +83,7 @@ func TestInstall_PreservesExistingMCPServers(t *testing.T) {
 	data := readSettingsFile(t, dir)
 	assertMCPEntry(t, data)
 
-	mcpServers := data["mcpServers"].(map[string]any)
-	if _, ok := mcpServers["other"]; !ok {
+	if _, ok := data.MCPServers["other"]; !ok {
 		t.Error("install removed existing mcpServer entry")
 	}
 }
@@ -106,20 +102,20 @@ func chdir(t *testing.T, dir string) {
 	t.Cleanup(func() { _ = os.Chdir(orig) })
 }
 
-func readSettingsFile(t *testing.T, dir string) map[string]any {
+func readSettingsFile(t *testing.T, dir string) settings {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join(dir, SettingsPath))
 	if err != nil {
 		t.Fatalf("reading settings: %v", err)
 	}
-	var data map[string]any
+	var data settings
 	if err := json.Unmarshal(raw, &data); err != nil {
 		t.Fatalf("parsing settings: %v", err)
 	}
 	return data
 }
 
-func writeSettingsFile(t *testing.T, dir string, data map[string]any) {
+func writeSettingsFile(t *testing.T, dir string, data settings) {
 	t.Helper()
 	path := filepath.Join(dir, SettingsPath)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -131,21 +127,17 @@ func writeSettingsFile(t *testing.T, dir string, data map[string]any) {
 	}
 }
 
-func assertMCPEntry(t *testing.T, data map[string]any) {
+func assertMCPEntry(t *testing.T, data settings) {
 	t.Helper()
-	mcpServers, ok := data["mcpServers"].(map[string]any)
+	nexus, ok := data.MCPServers["nexus"]
 	if !ok {
-		t.Fatal("mcpServers key missing or not an object")
+		t.Fatal("mcpServers.nexus missing")
 	}
-	nexus, ok := mcpServers["nexus"].(map[string]any)
-	if !ok {
-		t.Fatal("mcpServers.nexus missing or not an object")
-	}
-	if nexus["type"] != "sse" {
-		t.Errorf("type = %q, want %q", nexus["type"], "sse")
+	if nexus.Type != "sse" {
+		t.Errorf("type = %q, want %q", nexus.Type, "sse")
 	}
 	wantURL := MCPBaseURL + "/sse"
-	if nexus["url"] != wantURL {
-		t.Errorf("url = %q, want %q", nexus["url"], wantURL)
+	if nexus.URL != wantURL {
+		t.Errorf("url = %q, want %q", nexus.URL, wantURL)
 	}
 }
