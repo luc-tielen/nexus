@@ -2,7 +2,7 @@ generate:
     sqlc generate
 
 build:
-    go build ./...
+    go build -o nexus ./cmd/nexus/
 
 start *args:
     go run ./cmd/nexus/main.go {{args}}
