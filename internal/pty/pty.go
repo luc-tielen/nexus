@@ -25,6 +25,8 @@ type Wrapper struct {
 // New creates a Wrapper ready to run a child process.
 func New() *Wrapper {
 	return &Wrapper{
+		// Buffer 8 so callers (e.g. the scheduler) don't block on a burst
+		// of injections while the pty goroutine is busy.
 		inject: make(chan string, 8),
 	}
 }
