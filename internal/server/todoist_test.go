@@ -35,7 +35,7 @@ func TestHandleListTodoistTasks_Empty(t *testing.T) {
 	tc := newTodoistClientWithHandler(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`[]`))
+		_, _ = w.Write([]byte(`{"results":[]}`))
 	})
 
 	res, err := handleListTodoistTasks(tc, toolReq(nil))
@@ -51,7 +51,7 @@ func TestHandleListTodoistTasks_Success(t *testing.T) {
 	tc := newTodoistClientWithHandler(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`[{"id":"1","content":"buy milk"}]`))
+		_, _ = w.Write([]byte(`{"results":[{"id":"1","content":"buy milk"}]}`))
 	})
 
 	res, err := handleListTodoistTasks(tc, toolReq(nil))

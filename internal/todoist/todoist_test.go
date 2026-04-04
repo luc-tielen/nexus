@@ -33,7 +33,7 @@ func TestListTasks_Success(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`[{"id":"1","content":"buy milk"},{"id":"2","content":"call mom"}]`))
+		_, _ = w.Write([]byte(`{"results":[{"id":"1","content":"buy milk"},{"id":"2","content":"call mom"}]}`))
 	}))
 	defer srv.Close()
 
@@ -47,6 +47,33 @@ func TestListTasks_Success(t *testing.T) {
 	}
 	if tasks[0].ID != "1" || tasks[0].Content != "buy milk" {
 		t.Errorf("task[0] = %+v, want {ID:1 Content:buy milk}", tasks[0])
+	}
+}
+
+func TestListTasks_Pagination(t *testing.T) {
+	callCount := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		callCount++
+		if r.URL.Query().Get("cursor") == "" {
+			_, _ = w.Write([]byte(`{"results":[{"id":"1","content":"buy milk"}],"next_cursor":"abc"}`))
+		} else {
+			_, _ = w.Write([]byte(`{"results":[{"id":"2","content":"call mom"}]}`))
+		}
+	}))
+	defer srv.Close()
+
+	c := &Client{apiKey: "testkey", http: srv.Client(), baseURL: srv.URL}
+	tasks, err := c.ListTasks()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(tasks) != 2 {
+		t.Fatalf("got %d tasks, want 2", len(tasks))
+	}
+	if callCount != 2 {
+		t.Errorf("got %d API calls, want 2", callCount)
 	}
 }
 

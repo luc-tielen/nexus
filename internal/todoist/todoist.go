@@ -14,7 +14,7 @@ type Task struct {
 	Content string `json:"content"`
 }
 
-const defaultBaseURL = "https://api.todoist.com/rest/v2"
+const defaultBaseURL = "https://api.todoist.com/api/v1"
 
 // doer is the subset of http.Client used for requests.
 // Extracted as an interface to allow test doubles.
@@ -44,34 +44,53 @@ func NewClientWithHTTP(apiKey string, h doer, baseURL string) *Client {
 	return &Client{apiKey: apiKey, http: h, baseURL: baseURL}
 }
 
-// ListTasks returns all active tasks from Todoist.
+// ListTasks returns all active tasks from Todoist, following pagination cursors.
 func (c *Client) ListTasks() ([]Task, error) {
-	req, err := http.NewRequest(http.MethodGet, c.baseURL+"/tasks", nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	var all []Task
+	cursor := ""
+	for {
+		url := c.baseURL + "/tasks"
+		if cursor != "" {
+			url += "?cursor=" + cursor
+		}
 
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("listing Todoist tasks: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
+		req, err := http.NewRequest(http.MethodGet, url, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("todoist API returned %s", resp.Status)
-	}
+		resp, err := c.http.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("listing Todoist tasks: %w", err)
+		}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading response: %w", err)
-	}
+		if resp.StatusCode != http.StatusOK {
+			_ = resp.Body.Close()
+			return nil, fmt.Errorf("todoist API returned %s", resp.Status)
+		}
 
-	var tasks []Task
-	if err := json.Unmarshal(body, &tasks); err != nil {
-		return nil, fmt.Errorf("decoding tasks: %w", err)
+		body, err := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("reading response: %w", err)
+		}
+
+		var page struct {
+			Results    []Task `json:"results"`
+			NextCursor string `json:"next_cursor"`
+		}
+		if err := json.Unmarshal(body, &page); err != nil {
+			return nil, fmt.Errorf("decoding tasks: %w", err)
+		}
+
+		all = append(all, page.Results...)
+		if page.NextCursor == "" {
+			break
+		}
+		cursor = page.NextCursor
 	}
-	return tasks, nil
+	return all, nil
 }
 
 // CompleteTask marks the task with the given ID as completed.
