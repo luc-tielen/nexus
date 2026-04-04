@@ -1,3 +1,6 @@
+generate:
+    sqlc generate
+
 build:
     go build ./...
 
