@@ -2,7 +2,6 @@ package discord
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -19,15 +18,12 @@ type Client struct {
 	ChannelID string
 }
 
-// NewClient reads DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID from the
-// environment and returns a ready client. Returns an error if either variable
-// is unset or if the session cannot be created.
-func NewClient() (*Client, error) {
-	token := os.Getenv("DISCORD_BOT_TOKEN")
+// NewClient returns a ready client for the given token and channelID.
+// Returns an error if either value is empty or if the session cannot be created.
+func NewClient(token, channelID string) (*Client, error) {
 	if token == "" {
 		return nil, fmt.Errorf("DISCORD_BOT_TOKEN is not set")
 	}
-	channelID := os.Getenv("DISCORD_CHANNEL_ID")
 	if channelID == "" {
 		return nil, fmt.Errorf("DISCORD_CHANNEL_ID is not set")
 	}

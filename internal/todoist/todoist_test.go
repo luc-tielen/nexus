@@ -7,18 +7,14 @@ import (
 )
 
 func TestNewClient_MissingAPIKey(t *testing.T) {
-	t.Setenv("TODOIST_API_KEY", "")
-
-	_, err := NewClient()
+	_, err := NewClient("")
 	if err == nil {
 		t.Error("expected error when API key missing")
 	}
 }
 
 func TestNewClient_KeySet(t *testing.T) {
-	t.Setenv("TODOIST_API_KEY", "mykey")
-
-	c, err := NewClient()
+	c, err := NewClient("mykey")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

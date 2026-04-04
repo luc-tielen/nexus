@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 )
 
 // Task represents a Todoist task.
@@ -30,10 +29,9 @@ type Client struct {
 	baseURL string
 }
 
-// NewClient reads TODOIST_API_KEY from the environment and returns a ready
-// client. Returns an error if the variable is unset.
-func NewClient() (*Client, error) {
-	apiKey := os.Getenv("TODOIST_API_KEY")
+// NewClient returns a ready client for the given apiKey.
+// Returns an error if apiKey is empty.
+func NewClient(apiKey string) (*Client, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("TODOIST_API_KEY is not set")
 	}

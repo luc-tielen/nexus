@@ -45,30 +45,21 @@ func TestClient_SendPropagatesError(t *testing.T) {
 }
 
 func TestNewClient_MissingToken(t *testing.T) {
-	t.Setenv("DISCORD_BOT_TOKEN", "")
-	t.Setenv("DISCORD_CHANNEL_ID", "chan123")
-
-	_, err := NewClient()
+	_, err := NewClient("", "chan123")
 	if err == nil {
 		t.Error("expected error when token missing")
 	}
 }
 
 func TestNewClient_MissingChannelID(t *testing.T) {
-	t.Setenv("DISCORD_BOT_TOKEN", "tok")
-	t.Setenv("DISCORD_CHANNEL_ID", "")
-
-	_, err := NewClient()
+	_, err := NewClient("tok", "")
 	if err == nil {
 		t.Error("expected error when channel ID missing")
 	}
 }
 
 func TestNewClient_BothSet(t *testing.T) {
-	t.Setenv("DISCORD_BOT_TOKEN", "mytoken")
-	t.Setenv("DISCORD_CHANNEL_ID", "mychannel")
-
-	c, err := NewClient()
+	c, err := NewClient("mytoken", "mychannel")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -80,9 +81,28 @@ func doInject(dst io.Writer, msg string, saved []byte) {
 	}
 }
 
+// filterEnv returns a copy of env with any entry whose key is in exclude removed.
+func filterEnv(env []string, exclude []string) []string {
+	excluded := make(map[string]bool, len(exclude))
+	for _, k := range exclude {
+		excluded[k] = true
+	}
+	filtered := make([]string, 0, len(env))
+	for _, e := range env {
+		key, _, _ := strings.Cut(e, "=")
+		if !excluded[key] {
+			filtered = append(filtered, e)
+		}
+	}
+	return filtered
+}
+
 // Run starts path with args under a PTY and blocks until it exits.
-func (w *Wrapper) Run(ctx context.Context, path string, args []string) error {
+// excludeEnv lists environment variable keys to strip from the child process
+// environment so they are never visible to the subprocess.
+func (w *Wrapper) Run(ctx context.Context, path string, args []string, excludeEnv []string) error {
 	cmd := exec.Command(path, args...)
+	cmd.Env = filterEnv(os.Environ(), excludeEnv)
 
 	ptm, err := pty.Start(cmd)
 	if err != nil {
