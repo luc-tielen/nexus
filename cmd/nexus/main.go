@@ -31,7 +31,7 @@ func main() {
 	}
 
 	if len(os.Args) > 1 && os.Args[1] == "install" {
-		if err := install.Install(); err != nil {
+		if err := install.Install(dbDir); err != nil {
 			fmt.Fprintln(os.Stderr, "nexus:", err)
 			os.Exit(1)
 		}

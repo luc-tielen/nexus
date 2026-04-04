@@ -61,9 +61,27 @@ func (s settings) MarshalJSON() ([]byte, error) {
 	return json.Marshal(out)
 }
 
-// Install writes the nexus MCP server entry into ~/.claude.json,
-// creating the file if it does not exist.
-func Install() error {
+// defaultConfigYAML is written to config.yaml on first install.
+const defaultConfigYAML = `# Optional Claude CLI arguments prepended to every nexus invocation.
+# claude_args:
+#   - --model
+#   - claude-opus-4-6
+`
+
+// Install writes the nexus MCP server entry into ~/.claude.json and creates a
+// default config.yaml in dataDir, both only if they do not already exist.
+func Install(dataDir string) error {
+	configPath := filepath.Join(dataDir, "config.yaml")
+	created, err := initConfigFile(dataDir)
+	if err != nil {
+		return err
+	}
+	if created {
+		fmt.Fprintf(os.Stderr, "nexus: wrote default config to %s\n", configPath)
+	} else {
+		fmt.Fprintf(os.Stderr, "nexus: config already exists at %s\n", configPath)
+	}
+
 	data, err := readSettings()
 	if err != nil {
 		return err
@@ -81,9 +99,37 @@ func Install() error {
 		return err
 	}
 
-	path, _ := settingsPath()
-	fmt.Fprintf(os.Stderr, "nexus: wrote MCP server config to %s\n", path)
+	settingsPath, _ := settingsPath()
+	fmt.Fprintf(os.Stderr, "nexus: wrote MCP server config to %s\n", settingsPath)
 	return nil
+}
+
+// initConfigFile creates dataDir and writes a default config.yaml into it if
+// the file does not already exist. It returns true if the file was created.
+func initConfigFile(dataDir string) (created bool, err error) {
+	if err := os.MkdirAll(dataDir, 0o700); err != nil {
+		return false, fmt.Errorf("creating config directory: %w", err)
+	}
+
+	path := filepath.Join(dataDir, "config.yaml")
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if os.IsExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("creating %s: %w", path, err)
+	}
+	defer func() {
+		if cerr := f.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("closing %s: %w", path, cerr)
+		}
+	}()
+
+	if _, err = f.WriteString(defaultConfigYAML); err != nil {
+		return false, fmt.Errorf("writing %s: %w", path, err)
+	}
+
+	return true, nil
 }
 
 func settingsPath() (string, error) {

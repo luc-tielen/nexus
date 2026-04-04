@@ -7,11 +7,17 @@ import (
 	"testing"
 )
 
+func dataDir(t *testing.T, home string) string {
+	t.Helper()
+	dir := filepath.Join(home, ".config", "nexus-ai")
+	return dir
+}
+
 func TestInstall_CreatesFileFromScratch(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 
-	if err := Install(); err != nil {
+	if err := Install(dataDir(t, dir)); err != nil {
 		t.Fatalf("install: %v", err)
 	}
 
@@ -19,14 +25,55 @@ func TestInstall_CreatesFileFromScratch(t *testing.T) {
 	assertMCPEntry(t, data)
 }
 
+func TestInstall_CreatesDefaultConfig(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	if err := Install(dataDir(t, dir)); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+
+	path := filepath.Join(dataDir(t, dir), "config.yaml")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("config.yaml not created: %v", err)
+	}
+}
+
+func TestInstall_DoesNotOverwriteExistingConfig(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	cfgDir := dataDir(t, dir)
+	if err := os.MkdirAll(cfgDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(cfgDir, "config.yaml")
+	existing := []byte("# existing\n")
+	if err := os.WriteFile(path, existing, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Install(cfgDir); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(existing) {
+		t.Errorf("config.yaml was overwritten: got %q", got)
+	}
+}
+
 func TestInstall_Idempotent(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 
-	if err := Install(); err != nil {
+	if err := Install(dataDir(t, dir)); err != nil {
 		t.Fatalf("first install: %v", err)
 	}
-	if err := Install(); err != nil {
+	if err := Install(dataDir(t, dir)); err != nil {
 		t.Fatalf("second install: %v", err)
 	}
 
@@ -52,7 +99,7 @@ func TestInstall_PreservesExistingContent(t *testing.T) {
 	}
 	writeSettingsFile(t, dir, existing)
 
-	if err := Install(); err != nil {
+	if err := Install(dataDir(t, dir)); err != nil {
 		t.Fatalf("install: %v", err)
 	}
 
@@ -76,7 +123,7 @@ func TestInstall_PreservesExistingMCPServers(t *testing.T) {
 	}
 	writeSettingsFile(t, dir, existing)
 
-	if err := Install(); err != nil {
+	if err := Install(dataDir(t, dir)); err != nil {
 		t.Fatalf("install: %v", err)
 	}
 
