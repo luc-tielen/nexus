@@ -17,7 +17,6 @@ import (
 // Wrapper manages a PTY-wrapped child process and supports injecting messages
 // into its stdin without clobbering in-progress user input.
 type Wrapper struct {
-	ptm     *os.File
 	inject  chan string
 	mu      sync.Mutex
 	lineBuf []byte
@@ -87,7 +86,6 @@ func (w *Wrapper) Run(ctx context.Context, path string, args []string) error {
 	if err != nil {
 		return err
 	}
-	w.ptm = ptm
 	defer func() { _ = ptm.Close() }()
 
 	// Put the real terminal in raw mode so we see every keystroke.
