@@ -106,7 +106,7 @@ func TestTrackInput_EscSequenceAtEndOfChunk(t *testing.T) {
 func TestDoInject_NoSaved(t *testing.T) {
 	var buf bytes.Buffer
 	doInject(&buf, "alert: something happened", nil)
-	want := "\r\x1b[2Kalert: something happened\n"
+	want := "\r\x1b[2Kalert: something happened\r"
 	if buf.String() != want {
 		t.Errorf("got %q, want %q", buf.String(), want)
 	}
@@ -115,7 +115,7 @@ func TestDoInject_NoSaved(t *testing.T) {
 func TestDoInject_WithSaved(t *testing.T) {
 	var buf bytes.Buffer
 	doInject(&buf, "alert: something happened", []byte("partial inp"))
-	want := "\r\x1b[2Kalert: something happened\npartial inp"
+	want := "\r\x1b[2Kalert: something happened\rpartial inp"
 	if buf.String() != want {
 		t.Errorf("got %q, want %q", buf.String(), want)
 	}
@@ -125,7 +125,7 @@ func TestDoInject_EmptySaved(t *testing.T) {
 	var buf bytes.Buffer
 	doInject(&buf, "msg", []byte{})
 	// empty saved should not write extra bytes
-	want := "\r\x1b[2Kmsg\n"
+	want := "\r\x1b[2Kmsg\r"
 	if buf.String() != want {
 		t.Errorf("got %q, want %q", buf.String(), want)
 	}

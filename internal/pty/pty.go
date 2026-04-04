@@ -74,7 +74,7 @@ func (w *Wrapper) trackInput(b []byte) {
 // doInject writes a clear-line escape, the message, and then replays any saved
 // keystrokes into dst (the pty master).
 func doInject(dst io.Writer, msg string, saved []byte) {
-	_, _ = fmt.Fprintf(dst, "\r\x1b[2K%s\n", msg)
+	_, _ = fmt.Fprintf(dst, "\r\x1b[2K%s\r", msg)
 	if len(saved) > 0 {
 		_, _ = dst.Write(saved)
 	}
