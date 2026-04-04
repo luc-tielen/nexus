@@ -3,6 +3,7 @@ package install
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 )
@@ -42,9 +43,7 @@ func (s *settings) UnmarshalJSON(b []byte) error {
 func (s settings) MarshalJSON() ([]byte, error) {
 	// Start from Extra so unknown fields are preserved.
 	out := make(map[string]json.RawMessage, len(s.Extra)+1)
-	for k, v := range s.Extra {
-		out[k] = v
-	}
+	maps.Copy(out, s.Extra)
 
 	if len(s.MCPServers) > 0 {
 		b, err := json.Marshal(s.MCPServers)
