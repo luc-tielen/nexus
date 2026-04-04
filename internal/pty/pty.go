@@ -152,7 +152,7 @@ func (w *Wrapper) Run(ctx context.Context, path string, args []string) error {
 
 				if len(saved) > 0 {
 					w.mu.Lock()
-					w.lineBuf = saved
+					w.lineBuf = append(saved, w.lineBuf...)
 					w.mu.Unlock()
 				}
 			}
