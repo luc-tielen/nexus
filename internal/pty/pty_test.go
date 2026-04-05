@@ -62,11 +62,6 @@ func TestTrackInput_EnterCR(t *testing.T) {
 	if len(w.lineBuf) != 0 {
 		t.Errorf("expected empty buf after CR, got %q", w.lineBuf)
 	}
-	select {
-	case <-w.enterPressed:
-	default:
-		t.Error("expected enterPressed signal after CR")
-	}
 }
 
 func TestTrackInput_EnterLF(t *testing.T) {
@@ -74,11 +69,6 @@ func TestTrackInput_EnterLF(t *testing.T) {
 	w.trackInput([]byte("hello\n"))
 	if len(w.lineBuf) != 0 {
 		t.Errorf("expected empty buf after LF, got %q", w.lineBuf)
-	}
-	select {
-	case <-w.enterPressed:
-	default:
-		t.Error("expected enterPressed signal after LF")
 	}
 }
 

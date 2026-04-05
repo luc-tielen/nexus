@@ -94,9 +94,7 @@ func (s *Scheduler) Load() error {
 // Returns the task ID.
 func (s *Scheduler) Add(schedule, message string) (string, error) {
 	id := uuid.New().String()
-	entryID, err := s.c.AddFunc(schedule, func() {
-		s.inject(message)
-	})
+	entryID, err := s.c.AddFunc(schedule, func() { s.inject(message) })
 	if err != nil {
 		return "", fmt.Errorf("invalid schedule %q: %w", schedule, err)
 	}

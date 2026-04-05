@@ -16,12 +16,11 @@ import (
 )
 
 // Wrapper manages a PTY-wrapped child process and supports injecting messages
-// into its stdin without clobbering in-progress user input.
+// into its stdin.
 type Wrapper struct {
-	inject       chan string
-	enterPressed chan struct{}
-	mu           sync.Mutex
-	lineBuf      []byte
+	inject  chan string
+	mu      sync.Mutex
+	lineBuf []byte
 }
 
 // New creates a Wrapper ready to run a child process.
@@ -30,8 +29,6 @@ func New() *Wrapper {
 		// Buffer 8 so callers (e.g. the scheduler) don't block on a burst
 		// of injections while the pty goroutine is busy.
 		inject: make(chan string, 8),
-		// Buffer 1: one pending "user pressed enter" signal is enough.
-		enterPressed: make(chan struct{}, 1),
 	}
 }
 
@@ -52,11 +49,6 @@ func (w *Wrapper) trackInput(b []byte) {
 		switch ch {
 		case '\r', '\n':
 			w.lineBuf = w.lineBuf[:0]
-			// Signal the injection handler that the input line is now clear.
-			select {
-			case w.enterPressed <- struct{}{}:
-			default:
-			}
 			i++
 		case 0x7f, 0x08: // DEL / BS
 			if len(w.lineBuf) > 0 {
@@ -160,29 +152,17 @@ func (w *Wrapper) Run(ctx context.Context, path string, args []string, excludeEn
 		}
 	}()
 
-	// Injection handler: fires scheduled messages immediately when the input
-	// line is clear, or queues them until the user's next Enter press.
+	// Injection handler: always fires immediately, clearing any partial input.
 	go func() {
-		var pending []string
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case msg := <-w.inject:
 				w.mu.Lock()
-				busy := len(w.lineBuf) > 0
+				w.lineBuf = w.lineBuf[:0]
 				w.mu.Unlock()
-				if busy {
-					pending = append(pending, msg)
-				} else {
-					doInject(ptm, msg)
-				}
-			case <-w.enterPressed:
-				if len(pending) > 0 {
-					msg := pending[0]
-					pending = pending[1:]
-					doInject(ptm, msg)
-				}
+				doInject(ptm, msg)
 			}
 		}
 	}()
