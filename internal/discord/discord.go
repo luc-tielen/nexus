@@ -41,3 +41,9 @@ func (c *Client) Send(content string) error {
 	_, err := c.Session.ChannelMessageSend(c.ChannelID, content)
 	return err
 }
+
+// SendTo posts content to an arbitrary Discord channel.
+func (c *Client) SendTo(channelID, content string) error {
+	_, err := c.Session.ChannelMessageSend(channelID, content)
+	return err
+}

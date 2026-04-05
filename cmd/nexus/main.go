@@ -65,13 +65,12 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	w := pty.New()
-	s := scheduler.New(w.Inject, store)
-	defer s.Stop()
-
-	if err := s.Load(); err != nil {
-		fmt.Fprintln(os.Stderr, "nexus: loading scheduled jobs:", err)
+	cfg, err := config.Load(dbDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "nexus: loading config:", err)
+		os.Exit(1)
 	}
+	claudeArgs := append(cfg.ClaudeArgs, os.Args[1:]...)
 
 	discordToken, _ := secretStore.Get("DISCORD_BOT_TOKEN")
 	discordChannel, _ := secretStore.Get("DISCORD_CHANNEL_ID")
@@ -96,19 +95,34 @@ func main() {
 		tc = nil
 	}
 
+	var logSend func(string) error
+	if dc != nil {
+		if logChannelID, _ := secretStore.Get("DISCORD_DEBUG_CHANNEL_ID"); logChannelID != "" {
+			logSend = func(content string) error {
+				return dc.SendTo(logChannelID, content)
+			}
+		}
+	}
+
+	w := pty.New()
+	s := scheduler.New(makeRunner(ctx, runnerConfig{
+		claudePath: claude,
+		claudeArgs: claudeArgs,
+		excludeEnv: secretStore.Keys(),
+		logSend:    logSend,
+	}), store)
+	defer s.Stop()
+
+	if err := s.Load(); err != nil {
+		fmt.Fprintln(os.Stderr, "nexus: loading scheduled jobs:", err)
+	}
+
 	shutdown, err := server.Start(ctx, w, s, dc, tgc, tc)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "nexus: MCP server failed to start:", err)
 		os.Exit(1)
 	}
 	defer shutdown()
-
-	cfg, err := config.Load(dbDir)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "nexus: loading config:", err)
-		os.Exit(1)
-	}
-	claudeArgs := append(cfg.ClaudeArgs, os.Args[1:]...)
 
 	if err := w.Run(ctx, claude, claudeArgs, secretStore.Keys()); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
