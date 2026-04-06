@@ -45,6 +45,16 @@ Example — ask Claude to send a daily standup summary every weekday at 9am:
 
 Cron expressions follow the standard 5-field format (`*/5 * * * *`) as well as descriptors like `@hourly` and `@every 30m`.
 
+### Keeping the machine awake
+
+Cron jobs rely on Go timers, which pause when the system sleeps. If your machine sleeps at night, scheduled jobs will be skipped rather than replayed when it wakes. On a Mac that stays plugged in (e.g. a Mac mini), disable system sleep permanently:
+
+```sh
+sudo pmset -c sleep 0
+```
+
+`-c` applies only while on AC power. The display can still sleep; only the system stays awake.
+
 ### Debug output
 
 If `DISCORD_DEBUG_CHANNEL_ID` is configured, the full output of each cron run is forwarded to that channel after the job completes.
