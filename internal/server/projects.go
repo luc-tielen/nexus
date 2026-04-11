@@ -60,14 +60,19 @@ func registerProjectTools(srv *mcpserver.MCPServer, store *projects.Store, ss *s
 
 	srv.AddTool(
 		mcp.NewTool("delete_project",
-			mcp.WithDescription("Delete a project and all its env injection mappings."),
+			mcp.WithDescription("Delete a project, its env injection mappings, and all its secrets. "+
+				"Call without 'confirm' first to see a summary of what will be deleted. "+
+				"This action is irreversible."),
 			mcp.WithString("name",
 				mcp.Required(),
 				mcp.Description("Project name to delete."),
 			),
+			mcp.WithBoolean("confirm",
+				mcp.Description("Set to true to confirm deletion. Without this the tool performs a dry run and shows what would be deleted."),
+			),
 		),
 		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleDeleteProject(store, state, req)
+			return handleDeleteProject(store, ss, state, req)
 		},
 	)
 
@@ -181,18 +186,58 @@ func handleAddProject(store *projects.Store, req mcp.CallToolRequest) (*mcp.Call
 	return mcp.NewToolResultText(fmt.Sprintf("project %q saved (path: %s)", name, path)), nil
 }
 
-func handleDeleteProject(store *projects.Store, state *projectState, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func handleDeleteProject(store *projects.Store, ss *secrets.Store, state *projectState, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	name := req.GetString("name", "")
 	if name == "" {
 		return nil, fmt.Errorf("name is required")
 	}
+
+	p, err := store.Get(name)
+	if err != nil {
+		return nil, err
+	}
+
+	secretKeys := ss.KeysForProject(name)
+
+	if !req.GetBool("confirm", false) {
+		type dryRun struct {
+			Warning    string   `json:"warning"`
+			Project    string   `json:"project"`
+			Path       string   `json:"path"`
+			Secrets    []string `json:"secrets"`
+			EnvMaps    int      `json:"env_mappings"`
+		}
+		envs, _ := store.ListEnv(name)
+		out, _ := json.Marshal(dryRun{
+			Warning: "This action is irreversible. Call again with confirm:true to proceed.",
+			Project: p.Name,
+			Path:    p.Path,
+			Secrets: secretKeys,
+			EnvMaps: len(envs),
+		})
+		return mcp.NewToolResultText(string(out)), nil
+	}
+
+	// Delete all project-scoped secrets first.
+	for _, k := range secretKeys {
+		if err := ss.Delete(k); err != nil {
+			return nil, fmt.Errorf("deleting secret %q: %w", k, err)
+		}
+	}
+
 	if err := store.Delete(name); err != nil {
 		return nil, err
 	}
 	if state.get() == name {
 		state.set("")
 	}
-	return mcp.NewToolResultText(fmt.Sprintf("project %q deleted", name)), nil
+
+	type result struct {
+		Deleted        string   `json:"deleted"`
+		SecretsDeleted []string `json:"secrets_deleted"`
+	}
+	out, _ := json.Marshal(result{Deleted: name, SecretsDeleted: secretKeys})
+	return mcp.NewToolResultText(string(out)), nil
 }
 
 func handleListProjects(store *projects.Store, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {

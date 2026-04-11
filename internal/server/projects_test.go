@@ -54,12 +54,46 @@ func TestHandleAddProject_Missing(t *testing.T) {
 	}
 }
 
-func TestHandleDeleteProject_ClearsState(t *testing.T) {
+func TestHandleDeleteProject_DryRun(t *testing.T) {
 	store := openTestProjectStore(t)
+	ss := openTestSecretStore(t)
+	state := &projectState{}
+	_ = store.Add("myapp", "/code/myapp")
+	_ = ss.Set("myapp::DB_URL", "postgres://localhost/myapp")
+
+	// No confirm flag → dry run.
+	res, err := handleDeleteProject(store, ss, state, toolReq(map[string]any{"name": "myapp"}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	text := textContent(res)
+	if !strings.Contains(text, "irreversible") {
+		t.Errorf("expected warning in dry-run output, got: %s", text)
+	}
+	if !strings.Contains(text, "myapp::DB_URL") {
+		t.Errorf("expected secret key listed in dry-run output, got: %s", text)
+	}
+
+	// Project must still exist after dry run.
+	if _, err := store.Get("myapp"); err != nil {
+		t.Error("project should not be deleted after dry run")
+	}
+	if _, ok := ss.Get("myapp::DB_URL"); !ok {
+		t.Error("secret should not be deleted after dry run")
+	}
+}
+
+func TestHandleDeleteProject_Confirmed(t *testing.T) {
+	store := openTestProjectStore(t)
+	ss := openTestSecretStore(t)
 	state := &projectState{current: "myapp"}
 	_ = store.Add("myapp", "/code/myapp")
+	_ = ss.Set("myapp::DB_URL", "postgres://localhost/myapp")
 
-	res, err := handleDeleteProject(store, state, toolReq(map[string]any{"name": "myapp"}))
+	res, err := handleDeleteProject(store, ss, state, toolReq(map[string]any{
+		"name":    "myapp",
+		"confirm": true,
+	}))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -68,6 +102,14 @@ func TestHandleDeleteProject_ClearsState(t *testing.T) {
 	}
 	if state.get() != "" {
 		t.Error("expected active project to be cleared after delete")
+	}
+
+	// Project and secret must be gone.
+	if _, err := store.Get("myapp"); err == nil {
+		t.Error("project should be deleted")
+	}
+	if _, ok := ss.Get("myapp::DB_URL"); ok {
+		t.Error("secret should be deleted along with project")
 	}
 }
 
