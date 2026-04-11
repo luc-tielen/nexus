@@ -8,7 +8,7 @@ A personal AI assistant, powered by Claude Code.
 nexus install
 ```
 
-This registers Nexus as an MCP server in your Claude Code config, giving Claude access to scheduling, Discord, and Todoist tools.
+This registers Nexus as an MCP server in your Claude Code config, giving Claude access to scheduling, Discord, Todoist, and project tools.
 
 Use `nexus` in place of `claude` from that point on.
 
@@ -37,57 +37,64 @@ The encryption identity is generated automatically on first run at `~/.config/ne
 
 ### Project-scoped secrets
 
-Secrets can be scoped to a project using the `projectname::KEY` naming convention. Pass `--project <name>` to the secret commands:
+Secrets can be scoped to a project using the `projectname::KEY` naming convention. Pass `--project <name>` to the secret commands (the project must already exist):
 
 ```sh
-nexus secret --project myapp set DB_URL postgres://localhost/myapp
+nexus secret --project myapp set DATABASE_URL postgres://localhost/myapp
 nexus secret --project myapp set API_KEY secret123
 nexus secret --project myapp list
-nexus secret --project myapp delete DB_URL
+nexus secret --project myapp delete DATABASE_URL
 ```
 
-This stores the secret as `myapp::DB_URL`. Global secrets (no `--project`) are still shared across all projects and used by Nexus itself (Discord, Telegram, etc.).
+The key is stored as `myapp::DATABASE_URL`. When a subprocess runs in a project context, all of that project's secrets are automatically injected as environment variables — the prefix is stripped, so `myapp::DATABASE_URL` becomes `DATABASE_URL` in the subprocess.
 
-To inject a project secret as an environment variable when running subprocesses, configure an env mapping via the `add_project_env` MCP tool (or ask Claude to set it up):
-
-> For project myapp, inject the secret myapp::DB_URL as DATABASE_URL when running subprocesses.
+Global secrets (no `--project`) are used by Nexus itself (Discord, Telegram, etc.) and are never injected into project subprocesses.
 
 ## Projects
 
 A project maps a short name to a directory path. This lets Claude work in a specific codebase on demand without you having to specify the path every time.
 
-### Managing projects
+### Managing projects (CLI)
 
-Projects are stored in SQLite and can be managed remotely (e.g. via Telegram) using MCP tools:
+Projects are created and deleted from the CLI — they are setup-time config, not runtime state:
+
+```sh
+nexus project add <name> <path>    # ~ is expanded; errors if name already exists
+nexus project delete <name>        # interactive confirmation; also deletes project secrets
+nexus project list
+```
+
+Example:
+
+```sh
+nexus project add myapp ~/code/myapp
+nexus project add website ~/code/website
+```
+
+### Using projects (MCP)
+
+Once created, projects can be used from within a Claude session via MCP tools:
 
 | Tool | Description |
 |------|-------------|
-| `add_project` | Add or update a project (`name`, `path`) |
-| `delete_project` | Remove a project and its env mappings |
-| `list_projects` | Show all projects with paths and env mappings |
-| `add_project_env` | Map a secret key to an env var for a project |
-| `delete_project_env` | Remove an env mapping |
+| `list_projects` | Show all configured projects with their paths |
 | `switch_project` | Set the active project for this session |
 | `get_current_project` | Return the currently active project |
 | `run_in_project` | Run a prompt in a project's directory and return the output |
 
-Example — ask Claude via Telegram to add a project:
+**Switching projects**
 
-> Add a project called "website" pointing to /Users/me/code/website
+`switch_project` sets the active project in memory and returns the project path along with a list of env vars to export. Claude uses this to `cd` into the project directory and set up the environment for the rest of the session. Pass an empty name to reset.
 
-### Switching projects
+**Running tasks in a project**
 
-`switch_project` sets the active project in memory and returns the project path along with a list of env vars to export. Claude uses this to `cd` into the project directory and set up the environment for the rest of the session.
-
-To reset back to the default context, switch to an empty name:
-
-> Switch back to no project
-
-### Running tasks in a project
-
-`run_in_project` spawns a `claude --print` subprocess in the project directory with all configured env vars injected. It blocks and returns the full output, so you see the result inline:
+`run_in_project` spawns a `claude --print` subprocess in the project directory with all project-scoped secrets injected as environment variables. It blocks and returns the full output inline:
 
 > For project myapp, run the test suite and summarise the failures.
+
+**Deleting projects remotely**
+
+To delete a project from a Claude session (e.g. via Telegram), use `delete_project`. Without `confirm: true` it returns a dry-run summary; with `confirm: true` it deletes the project and all its secrets.
 
 ## Cron jobs
 
