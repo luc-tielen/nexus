@@ -1,17 +1,14 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
 	"sync"
 	"time"
 
 	"github.com/luc/nexus/internal/projects"
-	"github.com/luc/nexus/internal/pty"
+	"github.com/luc/nexus/internal/runner"
 	"github.com/luc/nexus/internal/secrets"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -37,7 +34,25 @@ func (ps *projectState) get() string {
 	return ps.current
 }
 
-func registerProjectTools(srv *mcpserver.MCPServer, store *projects.Store, ss *secrets.Store, cfg Config) {
+// projectEnv builds the KEY=VALUE env slice for a project by injecting all
+// secrets whose key starts with "projectName::", stripping the prefix to get
+// the env var name.
+func projectEnv(ss *secrets.Store, projectName string) []string {
+	keys := ss.KeysForProject(projectName)
+	prefix := projectName + "::"
+	env := make([]string, 0, len(keys))
+	for _, k := range keys {
+		val, ok := ss.Get(k)
+		if !ok {
+			continue
+		}
+		envVar := k[len(prefix):]
+		env = append(env, envVar+"="+val)
+	}
+	return env
+}
+
+func registerProjectTools(srv *mcpserver.MCPServer, store *projects.Store, ss *secrets.Store, cfg runner.Config) {
 	state := &projectState{}
 
 	srv.AddTool(
@@ -307,22 +322,19 @@ func handleSwitchProject(store *projects.Store, ss *secrets.Store, state *projec
 		return nil, err
 	}
 
-	envs, err := store.ListEnv(name)
-	if err != nil {
-		return nil, err
-	}
-
 	type exportLine struct {
 		EnvVar string `json:"env_var"`
 		Value  string `json:"value"`
 	}
-	exports := make([]exportLine, 0, len(envs))
-	for _, e := range envs {
-		val, ok := ss.Get(e.SecretKey)
+	prefix := name + "::"
+	keys := ss.KeysForProject(name)
+	exports := make([]exportLine, 0, len(keys))
+	for _, k := range keys {
+		val, ok := ss.Get(k)
 		if !ok {
 			continue
 		}
-		exports = append(exports, exportLine{EnvVar: e.EnvVar, Value: val})
+		exports = append(exports, exportLine{EnvVar: k[len(prefix):], Value: val})
 	}
 
 	state.set(name)
@@ -353,7 +365,7 @@ func handleGetCurrentProject(store *projects.Store, state *projectState, _ mcp.C
 	return mcp.NewToolResultText(string(out)), nil
 }
 
-func handleRunInProject(ctx context.Context, store *projects.Store, ss *secrets.Store, cfg Config, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func handleRunInProject(ctx context.Context, store *projects.Store, ss *secrets.Store, cfg runner.Config, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	projectName := req.GetString("project", "")
 	prompt := req.GetString("prompt", "")
 	if projectName == "" {
@@ -368,40 +380,19 @@ func handleRunInProject(ctx context.Context, store *projects.Store, ss *secrets.
 		return nil, err
 	}
 
-	envs, err := store.ListEnv(projectName)
-	if err != nil {
-		return nil, err
-	}
-
-	// Build the subprocess environment: start from the current process env,
-	// strip global nexus secrets, then inject project-scoped secrets.
-	env := pty.FilterEnv(os.Environ(), cfg.ExcludeEnv)
-	for _, e := range envs {
-		val, ok := ss.Get(e.SecretKey)
-		if !ok {
-			continue
-		}
-		env = append(env, e.EnvVar+"="+val)
-	}
+	extraEnv := projectEnv(ss, projectName)
 
 	jobCtx, cancel := context.WithTimeout(ctx, projectJobTimeout)
 	defer cancel()
 
-	args := make([]string, len(cfg.ClaudeArgs), len(cfg.ClaudeArgs)+2)
-	copy(args, cfg.ClaudeArgs)
-	args = append(args, "--print", prompt)
-
-	cmd := exec.CommandContext(jobCtx, cfg.ClaudePath, args...)
-	cmd.Dir = p.Path
-	cmd.Env = env
-
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &out
-
-	if runErr := cmd.Run(); runErr != nil {
-		fmt.Fprintf(&out, "\n[nexus: process exited: %v]", runErr)
+	output, err := runner.Run(jobCtx, runner.Job{
+		Config:   cfg,
+		WorkDir:  p.Path,
+		ExtraEnv: extraEnv,
+		Prompt:   prompt,
+	})
+	if err != nil {
+		return nil, err
 	}
-
-	return mcp.NewToolResultText(out.String()), nil
+	return mcp.NewToolResultText(output), nil
 }

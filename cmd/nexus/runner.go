@@ -1,14 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"time"
 
-	"github.com/luc/nexus/internal/pty"
+	"github.com/luc/nexus/internal/runner"
 )
 
 const cronJobTimeout = 5 * time.Minute
@@ -16,18 +14,16 @@ const cronJobTimeout = 5 * time.Minute
 // discordChunkSize is the maximum characters per Discord message.
 const discordChunkSize = 1900
 
-// runnerConfig holds the parameters needed to spawn cron job subprocesses.
-type runnerConfig struct {
-	claudePath string
-	claudeArgs []string
-	excludeEnv []string
-	logSend    func(string) error
+// cronConfig holds the parameters needed to spawn cron job subprocesses.
+type cronConfig struct {
+	runnerCfg runner.Config
+	logSend   func(string) error
 }
 
-// makeRunner returns a function that, when called with a message, spawns
+// makeCronRunner returns a function that, when called with a message, spawns
 // claude --print <message> in a subprocess and forwards its output to cfg.logSend.
 // If logSend is nil, output is written to stderr instead.
-func makeRunner(ctx context.Context, cfg runnerConfig) func(string) {
+func makeCronRunner(ctx context.Context, cfg cronConfig) func(string) {
 	return func(msg string) {
 		go func() {
 			if err := runCronJob(ctx, cfg, msg); err != nil {
@@ -37,27 +33,17 @@ func makeRunner(ctx context.Context, cfg runnerConfig) func(string) {
 	}
 }
 
-func runCronJob(ctx context.Context, cfg runnerConfig, msg string) error {
+func runCronJob(ctx context.Context, cfg cronConfig, msg string) error {
 	jobCtx, cancel := context.WithTimeout(ctx, cronJobTimeout)
 	defer cancel()
 
-	args := make([]string, len(cfg.claudeArgs), len(cfg.claudeArgs)+2)
-	copy(args, cfg.claudeArgs)
-	args = append(args, "--print", msg)
-
-	cmd := exec.CommandContext(jobCtx, cfg.claudePath, args...)
-	cmd.Env = pty.FilterEnv(os.Environ(), cfg.excludeEnv)
-
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &out
-
-	runErr := cmd.Run()
-	if runErr != nil {
-		fmt.Fprintf(&out, "\n[nexus: process exited: %v]", runErr)
+	output, err := runner.Run(jobCtx, runner.Job{
+		Config: cfg.runnerCfg,
+		Prompt: msg,
+	})
+	if err != nil {
+		return err
 	}
-
-	output := out.String()
 	if output == "" {
 		return nil
 	}

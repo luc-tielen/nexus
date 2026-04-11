@@ -12,6 +12,7 @@ import (
 	"github.com/luc/nexus/internal/install"
 	"github.com/luc/nexus/internal/projects"
 	"github.com/luc/nexus/internal/pty"
+	"github.com/luc/nexus/internal/runner"
 	"github.com/luc/nexus/internal/scheduler"
 	"github.com/luc/nexus/internal/secrets"
 	"github.com/luc/nexus/internal/server"
@@ -108,11 +109,13 @@ func main() {
 	}
 
 	w := pty.New()
-	s := scheduler.New(makeRunner(ctx, runnerConfig{
-		claudePath: claude,
-		claudeArgs: claudeArgs,
-		excludeEnv: secretStore.Keys(),
-		logSend:    logSend,
+	s := scheduler.New(makeCronRunner(ctx, cronConfig{
+		runnerCfg: runner.Config{
+			ClaudePath: claude,
+			ClaudeArgs: claudeArgs,
+			ExcludeEnv: secretStore.Keys(),
+		},
+		logSend: logSend,
 	}), store)
 	defer s.Stop()
 
@@ -120,13 +123,13 @@ func main() {
 		fmt.Fprintln(os.Stderr, "nexus: loading scheduled jobs:", err)
 	}
 
-	srvCfg := server.Config{
+	runnerCfg := runner.Config{
 		ClaudePath: claude,
 		ClaudeArgs: claudeArgs,
 		ExcludeEnv: secretStore.Keys(),
 	}
 
-	shutdown, err := server.Start(ctx, w, s, dc, tgc, tc, projectStore, secretStore, srvCfg)
+	shutdown, err := server.Start(ctx, w, s, dc, tgc, tc, projectStore, secretStore, runnerCfg)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "nexus: MCP server failed to start:", err)
 		os.Exit(1)
