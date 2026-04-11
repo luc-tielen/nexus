@@ -15,12 +15,6 @@ type Project struct {
 	Path string
 }
 
-type ProjectEnv struct {
-	ProjectName string
-	SecretKey   string
-	EnvVar      string
-}
-
 type SchemaMigration struct {
 	Version int64
 }

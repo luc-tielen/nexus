@@ -25,13 +25,15 @@ var migrations = []string{
 		name TEXT PRIMARY KEY,
 		path TEXT NOT NULL
 	)`,
-	// v3: per-project env injection mappings
+	// v3: per-project env injection mappings (removed in v4)
 	`CREATE TABLE IF NOT EXISTS project_env (
 		project_name TEXT NOT NULL,
 		secret_key   TEXT NOT NULL,
 		env_var      TEXT NOT NULL,
 		PRIMARY KEY (project_name, secret_key)
 	)`,
+	// v4: drop project_env — secrets are injected by stripping the project prefix
+	`DROP TABLE IF EXISTS project_env`,
 }
 
 type sqliteStore struct {

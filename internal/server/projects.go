@@ -101,46 +101,6 @@ func registerProjectTools(srv *mcpserver.MCPServer, store *projects.Store, ss *s
 	)
 
 	srv.AddTool(
-		mcp.NewTool("add_project_env",
-			mcp.WithDescription("Configure a secret to be injected as an environment variable when "+
-				"running subprocesses in a project context. "+
-				"The secret must exist in the secrets store under the key 'projectname::SECRET_KEY'."),
-			mcp.WithString("project",
-				mcp.Required(),
-				mcp.Description("Project name."),
-			),
-			mcp.WithString("secret_key",
-				mcp.Required(),
-				mcp.Description("Full secret key as stored (e.g. 'myapp::DB_URL')."),
-			),
-			mcp.WithString("env_var",
-				mcp.Required(),
-				mcp.Description("Environment variable name to inject the secret as (e.g. 'DATABASE_URL')."),
-			),
-		),
-		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleAddProjectEnv(store, req)
-		},
-	)
-
-	srv.AddTool(
-		mcp.NewTool("delete_project_env",
-			mcp.WithDescription("Remove an env injection mapping from a project."),
-			mcp.WithString("project",
-				mcp.Required(),
-				mcp.Description("Project name."),
-			),
-			mcp.WithString("secret_key",
-				mcp.Required(),
-				mcp.Description("Secret key to remove (e.g. 'myapp::DB_URL')."),
-			),
-		),
-		func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleDeleteProjectEnv(store, req)
-		},
-	)
-
-	srv.AddTool(
 		mcp.NewTool("switch_project",
 			mcp.WithDescription("Switch the active project for this session. "+
 				"Returns the project path and a list of env vars to export so that "+
@@ -220,15 +180,12 @@ func handleDeleteProject(store *projects.Store, ss *secrets.Store, state *projec
 			Project string   `json:"project"`
 			Path    string   `json:"path"`
 			Secrets []string `json:"secrets"`
-			EnvMaps int      `json:"env_mappings"`
 		}
-		envs, _ := store.ListEnv(name)
 		out, _ := json.Marshal(dryRun{
 			Warning: "This action is irreversible. Call again with confirm:true to proceed.",
 			Project: p.Name,
 			Path:    p.Path,
 			Secrets: secretKeys,
-			EnvMaps: len(envs),
 		})
 		return mcp.NewToolResultText(string(out)), nil
 	}
@@ -260,55 +217,18 @@ func handleListProjects(store *projects.Store, _ mcp.CallToolRequest) (*mcp.Call
 	if err != nil {
 		return nil, err
 	}
-	type envRow struct {
-		SecretKey string `json:"secret_key"`
-		EnvVar    string `json:"env_var"`
-	}
 	type row struct {
-		Name string   `json:"name"`
-		Path string   `json:"path"`
-		Env  []envRow `json:"env,omitempty"`
+		Name string `json:"name"`
+		Path string `json:"path"`
 	}
 	rows := make([]row, len(list))
 	for i, p := range list {
-		envs, err := store.ListEnv(p.Name)
-		if err != nil {
-			return nil, err
-		}
-		envRows := make([]envRow, len(envs))
-		for j, e := range envs {
-			envRows[j] = envRow{SecretKey: e.SecretKey, EnvVar: e.EnvVar}
-		}
-		rows[i] = row{Name: p.Name, Path: p.Path, Env: envRows}
+		rows[i] = row{Name: p.Name, Path: p.Path}
 	}
 	out, _ := json.Marshal(rows)
 	return mcp.NewToolResultText(string(out)), nil
 }
 
-func handleAddProjectEnv(store *projects.Store, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	project := req.GetString("project", "")
-	secretKey := req.GetString("secret_key", "")
-	envVar := req.GetString("env_var", "")
-	if project == "" || secretKey == "" || envVar == "" {
-		return nil, fmt.Errorf("project, secret_key, and env_var are all required")
-	}
-	if err := store.AddEnv(project, secretKey, envVar); err != nil {
-		return nil, err
-	}
-	return mcp.NewToolResultText(fmt.Sprintf("env mapping added: %s → %s", secretKey, envVar)), nil
-}
-
-func handleDeleteProjectEnv(store *projects.Store, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	project := req.GetString("project", "")
-	secretKey := req.GetString("secret_key", "")
-	if project == "" || secretKey == "" {
-		return nil, fmt.Errorf("project and secret_key are required")
-	}
-	if err := store.DeleteEnv(project, secretKey); err != nil {
-		return nil, err
-	}
-	return mcp.NewToolResultText(fmt.Sprintf("env mapping for %q removed from project %q", secretKey, project)), nil
-}
 
 func handleSwitchProject(store *projects.Store, ss *secrets.Store, state *projectState, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	name := req.GetString("name", "")

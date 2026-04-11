@@ -24,51 +24,12 @@ func (q *Queries) AddProject(ctx context.Context, arg AddProjectParams) error {
 	return err
 }
 
-const addProjectEnv = `-- name: AddProjectEnv :exec
-INSERT INTO project_env (project_name, secret_key, env_var) VALUES (?, ?, ?)
-ON CONFLICT (project_name, secret_key) DO UPDATE SET env_var = excluded.env_var
-`
-
-type AddProjectEnvParams struct {
-	ProjectName string
-	SecretKey   string
-	EnvVar      string
-}
-
-func (q *Queries) AddProjectEnv(ctx context.Context, arg AddProjectEnvParams) error {
-	_, err := q.db.ExecContext(ctx, addProjectEnv, arg.ProjectName, arg.SecretKey, arg.EnvVar)
-	return err
-}
-
-const deleteAllProjectEnv = `-- name: DeleteAllProjectEnv :exec
-DELETE FROM project_env WHERE project_name = ?
-`
-
-func (q *Queries) DeleteAllProjectEnv(ctx context.Context, projectName string) error {
-	_, err := q.db.ExecContext(ctx, deleteAllProjectEnv, projectName)
-	return err
-}
-
 const deleteProject = `-- name: DeleteProject :exec
 DELETE FROM projects WHERE name = ?
 `
 
 func (q *Queries) DeleteProject(ctx context.Context, name string) error {
 	_, err := q.db.ExecContext(ctx, deleteProject, name)
-	return err
-}
-
-const deleteProjectEnv = `-- name: DeleteProjectEnv :exec
-DELETE FROM project_env WHERE project_name = ? AND secret_key = ?
-`
-
-type DeleteProjectEnvParams struct {
-	ProjectName string
-	SecretKey   string
-}
-
-func (q *Queries) DeleteProjectEnv(ctx context.Context, arg DeleteProjectEnvParams) error {
-	_, err := q.db.ExecContext(ctx, deleteProjectEnv, arg.ProjectName, arg.SecretKey)
 	return err
 }
 
@@ -81,38 +42,6 @@ func (q *Queries) GetProject(ctx context.Context, name string) (Project, error) 
 	var i Project
 	err := row.Scan(&i.Name, &i.Path)
 	return i, err
-}
-
-const listProjectEnv = `-- name: ListProjectEnv :many
-SELECT secret_key, env_var FROM project_env WHERE project_name = ? ORDER BY secret_key
-`
-
-type ListProjectEnvRow struct {
-	SecretKey string
-	EnvVar    string
-}
-
-func (q *Queries) ListProjectEnv(ctx context.Context, projectName string) ([]ListProjectEnvRow, error) {
-	rows, err := q.db.QueryContext(ctx, listProjectEnv, projectName)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListProjectEnvRow
-	for rows.Next() {
-		var i ListProjectEnvRow
-		if err := rows.Scan(&i.SecretKey, &i.EnvVar); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listProjects = `-- name: ListProjects :many

@@ -15,14 +15,7 @@ type Project struct {
 	Path string
 }
 
-// EnvMapping maps a secret key (as stored in the secrets store) to the
-// environment variable name that should be injected into a project subprocess.
-type EnvMapping struct {
-	SecretKey string
-	EnvVar    string
-}
-
-// Store manages projects and their env injection configuration.
+// Store manages projects.
 type Store struct {
 	queries *db.Queries
 }
@@ -62,11 +55,8 @@ func (s *Store) Get(name string) (Project, error) {
 	return Project{Name: row.Name, Path: row.Path}, nil
 }
 
-// Delete removes a project and all of its env mappings.
+// Delete removes a project.
 func (s *Store) Delete(name string) error {
-	if err := s.queries.DeleteAllProjectEnv(context.Background(), name); err != nil {
-		return fmt.Errorf("projects: delete env for %q: %w", name, err)
-	}
 	if err := s.queries.DeleteProject(context.Background(), name); err != nil {
 		return fmt.Errorf("projects: delete %q: %w", name, err)
 	}
@@ -86,40 +76,3 @@ func (s *Store) List() ([]Project, error) {
 	return out, nil
 }
 
-// AddEnv inserts or updates an env injection mapping for a project. When a
-// subprocess is run in the project context, the value of secretKey from the
-// secrets store will be injected as envVar.
-func (s *Store) AddEnv(projectName, secretKey, envVar string) error {
-	if err := s.queries.AddProjectEnv(context.Background(), db.AddProjectEnvParams{
-		ProjectName: projectName,
-		SecretKey:   secretKey,
-		EnvVar:      envVar,
-	}); err != nil {
-		return fmt.Errorf("projects: add env for %q: %w", projectName, err)
-	}
-	return nil
-}
-
-// DeleteEnv removes a single env mapping for a project.
-func (s *Store) DeleteEnv(projectName, secretKey string) error {
-	if err := s.queries.DeleteProjectEnv(context.Background(), db.DeleteProjectEnvParams{
-		ProjectName: projectName,
-		SecretKey:   secretKey,
-	}); err != nil {
-		return fmt.Errorf("projects: delete env for %q key %q: %w", projectName, secretKey, err)
-	}
-	return nil
-}
-
-// ListEnv returns all env mappings for a project in sorted order.
-func (s *Store) ListEnv(projectName string) ([]EnvMapping, error) {
-	rows, err := s.queries.ListProjectEnv(context.Background(), projectName)
-	if err != nil {
-		return nil, fmt.Errorf("projects: list env for %q: %w", projectName, err)
-	}
-	out := make([]EnvMapping, len(rows))
-	for i, r := range rows {
-		out[i] = EnvMapping{SecretKey: r.SecretKey, EnvVar: r.EnvVar}
-	}
-	return out, nil
-}

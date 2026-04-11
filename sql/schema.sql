@@ -13,9 +13,3 @@ CREATE TABLE IF NOT EXISTS projects (
     path TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS project_env (
-    project_name TEXT NOT NULL,
-    secret_key   TEXT NOT NULL,
-    env_var      TEXT NOT NULL,
-    PRIMARY KEY (project_name, secret_key)
-);

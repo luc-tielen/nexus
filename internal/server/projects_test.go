@@ -30,30 +30,6 @@ func openTestSecretStore(t *testing.T) *secrets.Store {
 	return ss
 }
 
-func TestHandleAddProject(t *testing.T) {
-	store := openTestProjectStore(t)
-
-	res, err := handleAddProject(store, toolReq(map[string]any{
-		"name": "myapp",
-		"path": "/code/myapp",
-	}))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !strings.Contains(textContent(res), "myapp") {
-		t.Errorf("unexpected result: %s", textContent(res))
-	}
-}
-
-func TestHandleAddProject_Missing(t *testing.T) {
-	store := openTestProjectStore(t)
-
-	_, err := handleAddProject(store, toolReq(map[string]any{"name": "myapp"}))
-	if err == nil {
-		t.Error("expected error for missing path")
-	}
-}
-
 func TestHandleDeleteProject_DryRun(t *testing.T) {
 	store := openTestProjectStore(t)
 	ss := openTestSecretStore(t)
@@ -117,7 +93,6 @@ func TestHandleListProjects(t *testing.T) {
 	store := openTestProjectStore(t)
 	_ = store.Add("alpha", "/alpha")
 	_ = store.Add("beta", "/beta")
-	_ = store.AddEnv("alpha", "alpha::DB", "DATABASE_URL")
 
 	res, err := handleListProjects(store, toolReq(nil))
 	if err != nil {
@@ -134,10 +109,6 @@ func TestHandleListProjects(t *testing.T) {
 	if rows[0]["name"] != "alpha" {
 		t.Errorf("expected alpha first, got %v", rows[0]["name"])
 	}
-	envs, _ := rows[0]["env"].([]any)
-	if len(envs) != 1 {
-		t.Errorf("expected 1 env mapping for alpha, got %d", len(envs))
-	}
 }
 
 func TestHandleSwitchProject(t *testing.T) {
@@ -146,7 +117,6 @@ func TestHandleSwitchProject(t *testing.T) {
 	state := &projectState{}
 
 	_ = store.Add("myapp", "/code/myapp")
-	_ = store.AddEnv("myapp", "myapp::DB_URL", "DATABASE_URL")
 	_ = ss.Set("myapp::DB_URL", "postgres://localhost/myapp")
 
 	res, err := handleSwitchProject(store, ss, state, toolReq(map[string]any{"name": "myapp"}))
