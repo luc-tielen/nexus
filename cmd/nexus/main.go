@@ -123,13 +123,20 @@ func main() {
 		fmt.Fprintln(os.Stderr, "nexus: loading scheduled jobs:", err)
 	}
 
-	runnerCfg := runner.Config{
-		ClaudePath: claude,
-		ClaudeArgs: claudeArgs,
-		ExcludeEnv: secretStore.Keys(),
-	}
-
-	shutdown, err := server.Start(ctx, w, s, dc, tgc, tc, projectStore, secretStore, runnerCfg)
+	shutdown, err := server.Start(ctx, server.Options{
+		PTY:       w,
+		Scheduler: s,
+		Discord:   dc,
+		Telegram:  tgc,
+		Todoist:   tc,
+		Projects:  projectStore,
+		Secrets:   secretStore,
+		Runner: runner.Config{
+			ClaudePath: claude,
+			ClaudeArgs: claudeArgs,
+			ExcludeEnv: secretStore.Keys(),
+		},
+	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "nexus: MCP server failed to start:", err)
 		os.Exit(1)
