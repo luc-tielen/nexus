@@ -95,4 +95,3 @@ func (s *Store) List() ([]Project, error) {
 	}
 	return out, nil
 }
-

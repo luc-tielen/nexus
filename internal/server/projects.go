@@ -229,7 +229,6 @@ func handleListProjects(store *projects.Store, _ mcp.CallToolRequest) (*mcp.Call
 	return mcp.NewToolResultText(string(out)), nil
 }
 
-
 func handleSwitchProject(store *projects.Store, ss *secrets.Store, state *projectState, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	name := req.GetString("name", "")
 	if name == "" {
