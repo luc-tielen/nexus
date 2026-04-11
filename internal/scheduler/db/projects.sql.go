@@ -11,7 +11,6 @@ import (
 
 const addProject = `-- name: AddProject :exec
 INSERT INTO projects (name, path) VALUES (?, ?)
-ON CONFLICT (name) DO UPDATE SET path = excluded.path
 `
 
 type AddProjectParams struct {

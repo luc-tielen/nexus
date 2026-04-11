@@ -1,6 +1,8 @@
 package projects_test
 
 import (
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/luc/nexus/internal/projects"
@@ -30,6 +32,36 @@ func TestAddAndGet(t *testing.T) {
 	}
 	if p.Name != "myapp" || p.Path != "/home/user/myapp" {
 		t.Fatalf("unexpected project: %+v", p)
+	}
+}
+
+func TestAddConflictReturnsError(t *testing.T) {
+	s := openTestStore(t)
+	_ = s.Add("myapp", "/old/path")
+
+	err := s.Add("myapp", "/new/path")
+	if err == nil {
+		t.Fatal("expected error when adding duplicate project name")
+	}
+	if !strings.Contains(err.Error(), "already exists") {
+		t.Errorf("expected 'already exists' in error, got: %v", err)
+	}
+}
+
+func TestAddExpandsTilde(t *testing.T) {
+	s := openTestStore(t)
+	home, _ := os.UserHomeDir()
+
+	if err := s.Add("myapp", "~/code/myapp"); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	p, err := s.Get("myapp")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if p.Path != home+"/code/myapp" {
+		t.Errorf("expected expanded path %q, got %q", home+"/code/myapp", p.Path)
 	}
 }
 

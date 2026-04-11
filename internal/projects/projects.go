@@ -5,6 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/luc/nexus/internal/scheduler/db"
 )
@@ -25,8 +28,9 @@ func New(sqlDB *sql.DB) *Store {
 	return &Store{queries: db.New(sqlDB)}
 }
 
-// Add inserts or updates a project. If a project with the same name already
-// exists its path is replaced.
+// Add inserts a new project. Returns an error if a project with the same name
+// already exists — delete it first before re-adding.
+// A leading ~ in path is expanded to the current user's home directory.
 func (s *Store) Add(name, path string) error {
 	if name == "" {
 		return errors.New("projects: name must not be empty")
@@ -34,13 +38,29 @@ func (s *Store) Add(name, path string) error {
 	if path == "" {
 		return errors.New("projects: path must not be empty")
 	}
+	path = expandTilde(path)
 	if err := s.queries.AddProject(context.Background(), db.AddProjectParams{
 		Name: name,
 		Path: path,
 	}); err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return fmt.Errorf("project %q already exists — delete it first", name)
+		}
 		return fmt.Errorf("projects: add %q: %w", name, err)
 	}
 	return nil
+}
+
+// expandTilde replaces a leading ~ with the current user's home directory.
+func expandTilde(path string) string {
+	if !strings.HasPrefix(path, "~") {
+		return path
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return path
+	}
+	return filepath.Join(home, path[1:])
 }
 
 // Get returns the project with the given name, or an error if it does not exist.

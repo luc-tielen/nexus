@@ -1,6 +1,5 @@
 -- name: AddProject :exec
-INSERT INTO projects (name, path) VALUES (?, ?)
-ON CONFLICT (name) DO UPDATE SET path = excluded.path;
+INSERT INTO projects (name, path) VALUES (?, ?);
 
 -- name: GetProject :one
 SELECT name, path FROM projects WHERE name = ?;
