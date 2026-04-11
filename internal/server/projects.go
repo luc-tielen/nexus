@@ -201,11 +201,11 @@ func handleDeleteProject(store *projects.Store, ss *secrets.Store, state *projec
 
 	if !req.GetBool("confirm", false) {
 		type dryRun struct {
-			Warning    string   `json:"warning"`
-			Project    string   `json:"project"`
-			Path       string   `json:"path"`
-			Secrets    []string `json:"secrets"`
-			EnvMaps    int      `json:"env_mappings"`
+			Warning string   `json:"warning"`
+			Project string   `json:"project"`
+			Path    string   `json:"path"`
+			Secrets []string `json:"secrets"`
+			EnvMaps int      `json:"env_mappings"`
 		}
 		envs, _ := store.ListEnv(name)
 		out, _ := json.Marshal(dryRun{
