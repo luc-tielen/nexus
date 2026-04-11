@@ -45,17 +45,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	if len(os.Args) > 1 && os.Args[1] == "secret" {
-		runSecretCmd(secretStore, os.Args[2:])
-		return
-	}
-
-	claude, err := exec.LookPath("claude")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "nexus: claude not found in PATH")
-		os.Exit(1)
-	}
-
 	store, sqlDB, err := scheduler.OpenStore(filepath.Join(dbDir, "sqlite.db"))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "nexus: opening schedule store:", err)
@@ -64,6 +53,17 @@ func main() {
 	defer func() { _ = sqlDB.Close() }()
 
 	projectStore := projects.New(sqlDB)
+
+	if len(os.Args) > 1 && os.Args[1] == "secret" {
+		runSecretCmd(secretStore, projectStore, os.Args[2:])
+		return
+	}
+
+	claude, err := exec.LookPath("claude")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "nexus: claude not found in PATH")
+		os.Exit(1)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -142,7 +142,7 @@ func main() {
 	}
 }
 
-func runSecretCmd(store *secrets.Store, args []string) {
+func runSecretCmd(store *secrets.Store, ps *projects.Store, args []string) {
 	// Parse optional --project <name> flag before the subcommand.
 	var project string
 	for i := 0; i < len(args)-1; i++ {
@@ -156,6 +156,14 @@ func runSecretCmd(store *secrets.Store, args []string) {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "usage: nexus secret [--project NAME] <set|list|delete> ...")
 		os.Exit(1)
+	}
+
+	// Validate the project exists before doing anything with its secrets.
+	if project != "" {
+		if _, err := ps.Get(project); err != nil {
+			fmt.Fprintf(os.Stderr, "nexus: unknown project %q — create it first with an MCP tool\n", project)
+			os.Exit(1)
+		}
 	}
 
 	// scopedKey adds the project prefix when --project is set.
