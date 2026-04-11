@@ -10,6 +10,11 @@ type Job struct {
 	Message  string
 }
 
+type Project struct {
+	Name string
+	Path string
+}
+
 type SchemaMigration struct {
 	Version int64
 }

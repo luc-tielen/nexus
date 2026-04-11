@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,7 +11,9 @@ import (
 	"github.com/luc/nexus/internal/config"
 	"github.com/luc/nexus/internal/discord"
 	"github.com/luc/nexus/internal/install"
+	"github.com/luc/nexus/internal/projects"
 	"github.com/luc/nexus/internal/pty"
+	"github.com/luc/nexus/internal/runner"
 	"github.com/luc/nexus/internal/scheduler"
 	"github.com/luc/nexus/internal/secrets"
 	"github.com/luc/nexus/internal/server"
@@ -44,8 +47,22 @@ func main() {
 		os.Exit(1)
 	}
 
+	store, sqlDB, err := scheduler.OpenStore(filepath.Join(dbDir, "sqlite.db"))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "nexus: opening schedule store:", err)
+		os.Exit(1)
+	}
+	defer func() { _ = sqlDB.Close() }()
+
+	projectStore := projects.New(sqlDB)
+
 	if len(os.Args) > 1 && os.Args[1] == "secret" {
-		runSecretCmd(secretStore, os.Args[2:])
+		runSecretCmd(secretStore, projectStore, os.Args[2:])
+		return
+	}
+
+	if len(os.Args) > 1 && os.Args[1] == "project" {
+		runProjectCmd(projectStore, secretStore, os.Args[2:])
 		return
 	}
 
@@ -54,13 +71,6 @@ func main() {
 		fmt.Fprintln(os.Stderr, "nexus: claude not found in PATH")
 		os.Exit(1)
 	}
-
-	store, closeDB, err := scheduler.OpenStore(filepath.Join(dbDir, "sqlite.db"))
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "nexus: opening schedule store:", err)
-		os.Exit(1)
-	}
-	defer func() { _ = closeDB.Close() }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -105,11 +115,13 @@ func main() {
 	}
 
 	w := pty.New()
-	s := scheduler.New(makeRunner(ctx, runnerConfig{
-		claudePath: claude,
-		claudeArgs: claudeArgs,
-		excludeEnv: secretStore.Keys(),
-		logSend:    logSend,
+	s := scheduler.New(makeCronRunner(ctx, cronConfig{
+		runnerCfg: runner.Config{
+			ClaudePath: claude,
+			ClaudeArgs: claudeArgs,
+			ExcludeEnv: secretStore.Keys(),
+		},
+		logSend: logSend,
 	}), store)
 	defer s.Stop()
 
@@ -117,7 +129,20 @@ func main() {
 		fmt.Fprintln(os.Stderr, "nexus: loading scheduled jobs:", err)
 	}
 
-	shutdown, err := server.Start(ctx, w, s, dc, tgc, tc)
+	shutdown, err := server.Start(ctx, server.Options{
+		PTY:       w,
+		Scheduler: s,
+		Discord:   dc,
+		Telegram:  tgc,
+		Todoist:   tc,
+		Projects:  projectStore,
+		Secrets:   secretStore,
+		Runner: runner.Config{
+			ClaudePath: claude,
+			ClaudeArgs: claudeArgs,
+			ExcludeEnv: secretStore.Keys(),
+		},
+	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "nexus: MCP server failed to start:", err)
 		os.Exit(1)
@@ -133,24 +158,56 @@ func main() {
 	}
 }
 
-func runSecretCmd(store *secrets.Store, args []string) {
-	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: nexus secret <set|list|delete> ...")
+func runSecretCmd(store *secrets.Store, ps *projects.Store, args []string) {
+	fs := flag.NewFlagSet("secret", flag.ExitOnError)
+	project := fs.String("project", "", "scope this operation to a named project")
+	fs.Usage = func() {
+		fmt.Fprintln(os.Stderr, "usage: nexus secret [--project NAME] <set|list|delete> ...")
+		fs.PrintDefaults()
+	}
+	_ = fs.Parse(args)
+	subArgs := fs.Args()
+
+	if len(subArgs) == 0 {
+		fs.Usage()
 		os.Exit(1)
 	}
-	switch args[0] {
-	case "set":
-		if len(args) != 3 {
-			fmt.Fprintln(os.Stderr, "usage: nexus secret set KEY VALUE")
+
+	// Validate the project exists before doing anything with its secrets.
+	if *project != "" {
+		if _, err := ps.Get(*project); err != nil {
+			fmt.Fprintf(os.Stderr, "nexus: unknown project %q — create it first with 'nexus project add'\n", *project)
 			os.Exit(1)
 		}
-		if err := store.Set(args[1], args[2]); err != nil {
+	}
+
+	// scopedKey adds the project prefix when --project is set.
+	scopedKey := func(key string) string {
+		if *project != "" {
+			return secrets.ProjectKey(*project, key)
+		}
+		return key
+	}
+
+	switch subArgs[0] {
+	case "set":
+		if len(subArgs) != 3 {
+			fmt.Fprintln(os.Stderr, "usage: nexus secret [--project NAME] set KEY VALUE")
+			os.Exit(1)
+		}
+		key := scopedKey(subArgs[1])
+		if err := store.Set(key, subArgs[2]); err != nil {
 			fmt.Fprintln(os.Stderr, "nexus:", err)
 			os.Exit(1)
 		}
-		fmt.Printf("secret %q saved\n", args[1])
+		fmt.Printf("secret %q saved\n", key)
 	case "list":
-		keys := store.Keys()
+		var keys []string
+		if *project != "" {
+			keys = store.KeysForProject(*project)
+		} else {
+			keys = store.Keys()
+		}
 		if len(keys) == 0 {
 			fmt.Println("no secrets stored")
 			return
@@ -159,17 +216,18 @@ func runSecretCmd(store *secrets.Store, args []string) {
 			fmt.Println(k)
 		}
 	case "delete":
-		if len(args) != 2 {
-			fmt.Fprintln(os.Stderr, "usage: nexus secret delete KEY")
+		if len(subArgs) != 2 {
+			fmt.Fprintln(os.Stderr, "usage: nexus secret [--project NAME] delete KEY")
 			os.Exit(1)
 		}
-		if err := store.Delete(args[1]); err != nil {
+		key := scopedKey(subArgs[1])
+		if err := store.Delete(key); err != nil {
 			fmt.Fprintln(os.Stderr, "nexus:", err)
 			os.Exit(1)
 		}
-		fmt.Printf("secret %q deleted\n", args[1])
+		fmt.Printf("secret %q deleted\n", key)
 	default:
-		fmt.Fprintf(os.Stderr, "nexus: unknown secret command %q\n", args[0])
+		fmt.Fprintf(os.Stderr, "nexus: unknown secret command %q\n", subArgs[0])
 		os.Exit(1)
 	}
 }

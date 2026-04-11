@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/luc/nexus/internal/runner"
 )
 
 // TestMain enables the helper-process pattern: when NEXUS_TEST_HELPER is set,
@@ -43,10 +45,10 @@ func collectLogSend() (func(string) error, *[]string) {
 	}, &chunks
 }
 
-func testConfig(logSend func(string) error) runnerConfig {
-	return runnerConfig{
-		claudePath: os.Args[0],
-		logSend:    logSend,
+func testCronConfig(logSend func(string) error) cronConfig {
+	return cronConfig{
+		runnerCfg: runner.Config{ClaudePath: os.Args[0]},
+		logSend:   logSend,
 	}
 }
 
@@ -55,7 +57,7 @@ func TestRunCronJob_SendsOutputToLogSend(t *testing.T) {
 	t.Setenv("NEXUS_TEST_OUTPUT", "hello from cron")
 
 	logSend, chunks := collectLogSend()
-	if err := runCronJob(context.Background(), testConfig(logSend), "msg"); err != nil {
+	if err := runCronJob(context.Background(), testCronConfig(logSend), "msg"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -69,7 +71,7 @@ func TestRunCronJob_EmptyOutputSkipsLogSend(t *testing.T) {
 	t.Setenv("NEXUS_TEST_OUTPUT", "")
 
 	logSend, chunks := collectLogSend()
-	if err := runCronJob(context.Background(), testConfig(logSend), "msg"); err != nil {
+	if err := runCronJob(context.Background(), testCronConfig(logSend), "msg"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -84,7 +86,7 @@ func TestRunCronJob_LongOutputChunked(t *testing.T) {
 	t.Setenv("NEXUS_TEST_OUTPUT", output)
 
 	logSend, chunks := collectLogSend()
-	if err := runCronJob(context.Background(), testConfig(logSend), "msg"); err != nil {
+	if err := runCronJob(context.Background(), testCronConfig(logSend), "msg"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -107,7 +109,7 @@ func TestRunCronJob_NonZeroExitAppendsError(t *testing.T) {
 
 	logSend, chunks := collectLogSend()
 	// runCronJob itself returns nil even on subprocess failure; error is in the output.
-	_ = runCronJob(context.Background(), testConfig(logSend), "msg")
+	_ = runCronJob(context.Background(), testCronConfig(logSend), "msg")
 
 	combined := strings.Join(*chunks, "")
 	if !strings.Contains(combined, "partial output") {
@@ -125,7 +127,7 @@ func TestRunCronJob_CancelledContextReportsError(t *testing.T) {
 	cancel()
 
 	logSend, chunks := collectLogSend()
-	_ = runCronJob(ctx, testConfig(logSend), "msg")
+	_ = runCronJob(ctx, testCronConfig(logSend), "msg")
 
 	combined := strings.Join(*chunks, "")
 	if !strings.Contains(combined, "nexus: process exited:") {
@@ -133,7 +135,7 @@ func TestRunCronJob_CancelledContextReportsError(t *testing.T) {
 	}
 }
 
-func TestMakeRunner_SendsOutputToLogSend(t *testing.T) {
+func TestMakeCronRunner_SendsOutputToLogSend(t *testing.T) {
 	t.Setenv("NEXUS_TEST_HELPER", "print")
 	t.Setenv("NEXUS_TEST_OUTPUT", "async result")
 
@@ -143,8 +145,8 @@ func TestMakeRunner_SendsOutputToLogSend(t *testing.T) {
 		return nil
 	}
 
-	runner := makeRunner(context.Background(), testConfig(logSend))
-	runner("msg")
+	r := makeCronRunner(context.Background(), testCronConfig(logSend))
+	r("msg")
 
 	select {
 	case got := <-done:

@@ -8,7 +8,7 @@ A personal AI assistant, powered by Claude Code.
 nexus install
 ```
 
-This registers Nexus as an MCP server in your Claude Code config, giving Claude access to scheduling, Discord, and Todoist tools.
+This registers Nexus as an MCP server in your Claude Code config, giving Claude access to scheduling, Discord, Todoist, and project tools.
 
 Use `nexus` in place of `claude` from that point on.
 
@@ -34,6 +34,67 @@ The encryption identity is generated automatically on first run at `~/.config/ne
 | `TELEGRAM_BOT_TOKEN` | For Telegram | Bot token from BotFather. |
 | `TELEGRAM_CHAT_ID` | For Telegram | Chat ID where Claude posts Telegram messages. |
 | `TODOIST_API_KEY` | For Todoist | API token from Todoist settings. |
+
+### Project-scoped secrets
+
+Secrets can be scoped to a project using the `projectname::KEY` naming convention. Pass `--project <name>` to the secret commands (the project must already exist):
+
+```sh
+nexus secret --project myapp set DATABASE_URL postgres://localhost/myapp
+nexus secret --project myapp set API_KEY secret123
+nexus secret --project myapp list
+nexus secret --project myapp delete DATABASE_URL
+```
+
+The key is stored as `myapp::DATABASE_URL`. When a subprocess runs in a project context, all of that project's secrets are automatically injected as environment variables — the prefix is stripped, so `myapp::DATABASE_URL` becomes `DATABASE_URL` in the subprocess.
+
+Global secrets (no `--project`) are used by Nexus itself (Discord, Telegram, etc.) and are never injected into project subprocesses.
+
+## Projects
+
+A project maps a short name to a directory path. This lets Claude work in a specific codebase on demand without you having to specify the path every time.
+
+### Managing projects (CLI)
+
+Projects are created and deleted from the CLI — they are setup-time config, not runtime state:
+
+```sh
+nexus project add <name> <path>    # ~ is expanded; errors if name already exists
+nexus project delete <name>        # interactive confirmation; also deletes project secrets
+nexus project list
+```
+
+Example:
+
+```sh
+nexus project add myapp ~/code/myapp
+nexus project add website ~/code/website
+```
+
+### Using projects (MCP)
+
+Once created, projects can be used from within a Claude session via MCP tools:
+
+| Tool | Description |
+|------|-------------|
+| `list_projects` | Show all configured projects with their paths |
+| `switch_project` | Set the active project for this session |
+| `get_current_project` | Return the currently active project |
+| `run_in_project` | Run a prompt in a project's directory and return the output |
+
+**Switching projects**
+
+`switch_project` sets the active project in memory and returns the project path along with a list of env vars to export. Claude uses this to `cd` into the project directory and set up the environment for the rest of the session. Pass an empty name to reset.
+
+**Running tasks in a project**
+
+`run_in_project` spawns a `claude --print` subprocess in the project directory with all project-scoped secrets injected as environment variables. It blocks and returns the full output inline:
+
+> For project myapp, run the test suite and summarise the failures.
+
+**Deleting projects remotely**
+
+To delete a project from a Claude session (e.g. via Telegram), use `delete_project`. Without `confirm: true` it returns a dry-run summary; with `confirm: true` it deletes the project and all its secrets.
 
 ## Cron jobs
 
