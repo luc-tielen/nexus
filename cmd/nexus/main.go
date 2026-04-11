@@ -10,6 +10,7 @@ import (
 	"github.com/luc/nexus/internal/config"
 	"github.com/luc/nexus/internal/discord"
 	"github.com/luc/nexus/internal/install"
+	"github.com/luc/nexus/internal/projects"
 	"github.com/luc/nexus/internal/pty"
 	"github.com/luc/nexus/internal/scheduler"
 	"github.com/luc/nexus/internal/secrets"
@@ -61,6 +62,8 @@ func main() {
 		os.Exit(1)
 	}
 	defer func() { _ = sqlDB.Close() }()
+
+	projectStore := projects.New(sqlDB)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -117,7 +120,13 @@ func main() {
 		fmt.Fprintln(os.Stderr, "nexus: loading scheduled jobs:", err)
 	}
 
-	shutdown, err := server.Start(ctx, w, s, dc, tgc, tc)
+	srvCfg := server.Config{
+		ClaudePath: claude,
+		ClaudeArgs: claudeArgs,
+		ExcludeEnv: secretStore.Keys(),
+	}
+
+	shutdown, err := server.Start(ctx, w, s, dc, tgc, tc, projectStore, secretStore, srvCfg)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "nexus: MCP server failed to start:", err)
 		os.Exit(1)
