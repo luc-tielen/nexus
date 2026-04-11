@@ -39,8 +39,8 @@ func New(opts Options) *mcpserver.StreamableHTTPServer {
 	registerTelegramTools(srv, opts.Telegram)
 	registerTodoTools(srv, opts.Todoist)
 	registerProjectTools(srv, opts.Projects, opts.Secrets, opts.Runner)
+	registerPTYTools(srv, opts.PTY)
 
-	_ = opts.PTY // reserved for future tools that need the wrapper
 	return mcpserver.NewStreamableHTTPServer(srv)
 }
 
