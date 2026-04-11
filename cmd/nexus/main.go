@@ -60,6 +60,11 @@ func main() {
 		return
 	}
 
+	if len(os.Args) > 1 && os.Args[1] == "project" {
+		runProjectCmd(projectStore, secretStore, os.Args[2:])
+		return
+	}
+
 	claude, err := exec.LookPath("claude")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "nexus: claude not found in PATH")
