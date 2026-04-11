@@ -55,12 +55,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	store, closeDB, err := scheduler.OpenStore(filepath.Join(dbDir, "sqlite.db"))
+	store, sqlDB, err := scheduler.OpenStore(filepath.Join(dbDir, "sqlite.db"))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "nexus: opening schedule store:", err)
 		os.Exit(1)
 	}
-	defer func() { _ = closeDB.Close() }()
+	defer func() { _ = sqlDB.Close() }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

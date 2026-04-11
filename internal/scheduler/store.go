@@ -6,7 +6,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"io"
 
 	"github.com/luc/nexus/internal/scheduler/db"
 	_ "modernc.org/sqlite"
@@ -21,6 +20,18 @@ var migrations = []string{
 		schedule TEXT NOT NULL,
 		message  TEXT NOT NULL
 	)`,
+	// v2: projects
+	`CREATE TABLE IF NOT EXISTS projects (
+		name TEXT PRIMARY KEY,
+		path TEXT NOT NULL
+	)`,
+	// v3: per-project env injection mappings
+	`CREATE TABLE IF NOT EXISTS project_env (
+		project_name TEXT NOT NULL,
+		secret_key   TEXT NOT NULL,
+		env_var      TEXT NOT NULL,
+		PRIMARY KEY (project_name, secret_key)
+	)`,
 }
 
 type sqliteStore struct {
@@ -29,9 +40,9 @@ type sqliteStore struct {
 }
 
 // OpenStore opens (or creates) the SQLite database at path, runs any pending
-// migrations, and returns a Store and a Closer. The caller must close the
-// Closer when done.
-func OpenStore(path string) (Store, io.Closer, error) {
+// migrations, and returns a Store and the underlying *sql.DB. The caller must
+// close the DB when done.
+func OpenStore(path string) (Store, *sql.DB, error) {
 	sqlDB, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("scheduler: open store %s: %w", path, err)
