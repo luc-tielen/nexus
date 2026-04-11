@@ -14,11 +14,27 @@ import (
 )
 
 // Wrapper manages a PTY-wrapped child process.
-type Wrapper struct{}
+type Wrapper struct {
+	input chan []byte
+}
 
 // New creates a Wrapper ready to run a child process.
 func New() *Wrapper {
-	return &Wrapper{}
+	return &Wrapper{input: make(chan []byte, 8)}
+}
+
+// WriteInput injects data into the PTY's stdin. Non-blocking: drops silently
+// if the internal buffer is full.
+func (w *Wrapper) WriteInput(data []byte) {
+	select {
+	case w.input <- data:
+	default:
+	}
+}
+
+// Input returns a read-only view of the PTY input channel.
+func (w *Wrapper) Input() <-chan []byte {
+	return w.input
 }
 
 // FilterEnv returns a copy of env with any entry whose key is in exclude removed.
@@ -71,6 +87,18 @@ func (w *Wrapper) Run(ctx context.Context, path string, args []string, excludeEn
 		for range sigwinch {
 			if sz, err := pty.GetsizeFull(os.Stdin); err == nil {
 				_ = pty.Setsize(ptm, sz)
+			}
+		}
+	}()
+
+	// External input (e.g. remote /clear) → pty master.
+	go func() {
+		for {
+			select {
+			case data := <-w.input:
+				_, _ = ptm.Write(data)
+			case <-ctx.Done():
+				return
 			}
 		}
 	}()
