@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -158,53 +159,52 @@ func main() {
 }
 
 func runSecretCmd(store *secrets.Store, ps *projects.Store, args []string) {
-	// Parse optional --project <name> flag before the subcommand.
-	var project string
-	for i := 0; i < len(args)-1; i++ {
-		if args[i] == "--project" {
-			project = args[i+1]
-			args = append(args[:i], args[i+2:]...)
-			break
-		}
-	}
-
-	if len(args) == 0 {
+	fs := flag.NewFlagSet("secret", flag.ExitOnError)
+	project := fs.String("project", "", "scope this operation to a named project")
+	fs.Usage = func() {
 		fmt.Fprintln(os.Stderr, "usage: nexus secret [--project NAME] <set|list|delete> ...")
+		fs.PrintDefaults()
+	}
+	_ = fs.Parse(args)
+	subArgs := fs.Args()
+
+	if len(subArgs) == 0 {
+		fs.Usage()
 		os.Exit(1)
 	}
 
 	// Validate the project exists before doing anything with its secrets.
-	if project != "" {
-		if _, err := ps.Get(project); err != nil {
-			fmt.Fprintf(os.Stderr, "nexus: unknown project %q — create it first with an MCP tool\n", project)
+	if *project != "" {
+		if _, err := ps.Get(*project); err != nil {
+			fmt.Fprintf(os.Stderr, "nexus: unknown project %q — create it first with 'nexus project add'\n", *project)
 			os.Exit(1)
 		}
 	}
 
 	// scopedKey adds the project prefix when --project is set.
 	scopedKey := func(key string) string {
-		if project != "" {
-			return secrets.ProjectKey(project, key)
+		if *project != "" {
+			return secrets.ProjectKey(*project, key)
 		}
 		return key
 	}
 
-	switch args[0] {
+	switch subArgs[0] {
 	case "set":
-		if len(args) != 3 {
+		if len(subArgs) != 3 {
 			fmt.Fprintln(os.Stderr, "usage: nexus secret [--project NAME] set KEY VALUE")
 			os.Exit(1)
 		}
-		key := scopedKey(args[1])
-		if err := store.Set(key, args[2]); err != nil {
+		key := scopedKey(subArgs[1])
+		if err := store.Set(key, subArgs[2]); err != nil {
 			fmt.Fprintln(os.Stderr, "nexus:", err)
 			os.Exit(1)
 		}
 		fmt.Printf("secret %q saved\n", key)
 	case "list":
 		var keys []string
-		if project != "" {
-			keys = store.KeysForProject(project)
+		if *project != "" {
+			keys = store.KeysForProject(*project)
 		} else {
 			keys = store.Keys()
 		}
@@ -216,18 +216,18 @@ func runSecretCmd(store *secrets.Store, ps *projects.Store, args []string) {
 			fmt.Println(k)
 		}
 	case "delete":
-		if len(args) != 2 {
+		if len(subArgs) != 2 {
 			fmt.Fprintln(os.Stderr, "usage: nexus secret [--project NAME] delete KEY")
 			os.Exit(1)
 		}
-		key := scopedKey(args[1])
+		key := scopedKey(subArgs[1])
 		if err := store.Delete(key); err != nil {
 			fmt.Fprintln(os.Stderr, "nexus:", err)
 			os.Exit(1)
 		}
 		fmt.Printf("secret %q deleted\n", key)
 	default:
-		fmt.Fprintf(os.Stderr, "nexus: unknown secret command %q\n", args[0])
+		fmt.Fprintf(os.Stderr, "nexus: unknown secret command %q\n", subArgs[0])
 		os.Exit(1)
 	}
 }
