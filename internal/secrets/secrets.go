@@ -75,6 +75,26 @@ func (s *Store) Keys() []string {
 	return keys
 }
 
+// ProjectKey returns the namespaced secret key for the given project and
+// base key, e.g. ProjectKey("myapp", "DB_URL") → "myapp::DB_URL".
+func ProjectKey(project, key string) string {
+	return project + "::" + key
+}
+
+// KeysForProject returns all key names that belong to the given project
+// (i.e. prefixed with "project::"), in sorted order.
+func (s *Store) KeysForProject(project string) []string {
+	prefix := project + "::"
+	var keys []string
+	for k := range s.data {
+		if strings.HasPrefix(k, prefix) {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 func loadOrCreateIdentity(path string) (*age.X25519Identity, error) {
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
