@@ -80,7 +80,13 @@ func main() {
 		fmt.Fprintln(os.Stderr, "nexus: loading config:", err)
 		os.Exit(1)
 	}
+	// claudeArgs are the base args passed to background subprocesses.
+	// They intentionally exclude channel args to avoid spawning multiple
+	// competing bot listeners.
 	claudeArgs := append(cfg.ClaudeArgs, os.Args[1:]...)
+	// mainClaudeArgs are the args for the interactive PTY process only.
+	// Channel args are prepended here so the main session connects to the channel.
+	mainClaudeArgs := append(channelArgs(cfg.Channel), claudeArgs...)
 
 	discordToken, _ := secretStore.Get("DISCORD_BOT_TOKEN")
 	discordChannel, _ := secretStore.Get("DISCORD_CHANNEL_ID")
@@ -149,7 +155,7 @@ func main() {
 	}
 	defer shutdown()
 
-	if err := w.Run(ctx, claude, claudeArgs, secretStore.Keys()); err != nil {
+	if err := w.Run(ctx, claude, mainClaudeArgs, secretStore.Keys()); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			os.Exit(exitErr.ExitCode())
 		}
@@ -229,5 +235,18 @@ func runSecretCmd(store *secrets.Store, ps *projects.Store, args []string) {
 	default:
 		fmt.Fprintf(os.Stderr, "nexus: unknown secret command %q\n", subArgs[0])
 		os.Exit(1)
+	}
+}
+
+// channelArgs returns the Claude CLI arguments needed to activate the given
+// channel. These are added only to the main interactive process — never to
+// background subprocesses — to prevent multiple listeners competing for the
+// same bot connection.
+func channelArgs(channel string) []string {
+	switch channel {
+	case "telegram":
+		return []string{"--channels", "plugin:telegram@claude-plugins-official"}
+	default:
+		return nil
 	}
 }
