@@ -35,6 +35,16 @@ func TestParse(t *testing.T) {
 			want:  Config{ClaudeArgs: []string{"--model", "claude-opus-4-6"}},
 		},
 		{
+			name:  "channel telegram",
+			input: "channel: telegram\n",
+			want:  Config{Channel: "telegram"},
+		},
+		{
+			name:    "channel unsupported",
+			input:   "channel: discord\n",
+			wantErr: `channel: unsupported value "discord"`,
+		},
+		{
 			name:    "unknown key",
 			input:   "unknown_key: value\n",
 			wantErr: "field unknown_key not found",
@@ -73,6 +83,9 @@ func TestParse(t *testing.T) {
 				if cfg.ClaudeArgs[i] != tt.want.ClaudeArgs[i] {
 					t.Errorf("ClaudeArgs[%d] = %q, want %q", i, cfg.ClaudeArgs[i], tt.want.ClaudeArgs[i])
 				}
+			}
+			if cfg.Channel != tt.want.Channel {
+				t.Errorf("Channel = %q, want %q", cfg.Channel, tt.want.Channel)
 			}
 		})
 	}

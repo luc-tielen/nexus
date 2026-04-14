@@ -125,9 +125,20 @@ If `DISCORD_DEBUG_CHANNEL_ID` is configured, the full output of each cron run is
 Optional, non-sensitive settings live in `~/.config/nexus-ai/config.yaml`.
 
 ```yaml
+# Enable a communication channel. Supported values: telegram
+# The required Claude plugin args are added to the main interactive session only —
+# background subprocesses (cron jobs, run_in_project) do NOT get them, which
+# prevents multiple competing bot listeners from being spawned.
+channel: telegram
+
+# Extra arguments prepended to every claude invocation.
 claude_args:
   - --model
   - claude-opus-4-6
 ```
 
 `claude_args` are prepended to every invocation, so `nexus --verbose` would run Claude with `--model claude-opus-4-6 --verbose`.
+
+### Telegram channel
+
+Set `channel: telegram` to connect the main Claude session to your Telegram bot. This automatically adds `--channels plugin:telegram@claude-plugins-official` to the interactive process. Make sure the `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` secrets are configured.

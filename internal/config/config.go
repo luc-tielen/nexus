@@ -15,6 +15,12 @@ import (
 type Config struct {
 	// ClaudeArgs are extra arguments prepended to every `nexus` invocation.
 	ClaudeArgs []string `yaml:"claude_args"`
+
+	// Channel is an optional communication channel to enable.
+	// When set, the required Claude plugin args are added to the main
+	// interactive Claude process only — never to background subprocesses.
+	// Currently only "telegram" is supported.
+	Channel string `yaml:"channel"`
 }
 
 // Load reads ~/.config/nexus-ai/config.yaml. If the file does not exist an empty
@@ -51,6 +57,13 @@ func parse(raw []byte) (Config, error) {
 		if arg == "" {
 			return Config{}, fmt.Errorf("claude_args[%d]: empty string is not allowed", i)
 		}
+	}
+
+	switch cfg.Channel {
+	case "", "telegram":
+		// valid
+	default:
+		return Config{}, fmt.Errorf("channel: unsupported value %q (supported: telegram)", cfg.Channel)
 	}
 
 	return cfg, nil
