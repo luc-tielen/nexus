@@ -130,8 +130,8 @@ func (l *Listener) handleUpdate(ctx context.Context, msg *tgbotapi.Message, inje
 	if msg.Voice != nil {
 		return l.handleVoice(ctx, msg.Voice.FileID, prefix, inject)
 	}
-	if msg.Text != "" {
-		inject(prefix + msg.Text + "\r")
+	if text := strings.TrimRight(msg.Text, "\r\n"); text != "" {
+		inject(prefix + text + submitSuffix(text))
 	}
 	return nil
 }
@@ -153,8 +153,20 @@ func (l *Listener) handleVoice(ctx context.Context, fileID, prefix string, injec
 		return fmt.Errorf("transcribing voice: %w", err)
 	}
 
-	if text != "" {
-		inject(prefix + text + "\r")
+	if text = strings.TrimRight(text, "\r\n"); text != "" {
+		inject(prefix + text + submitSuffix(text))
 	}
 	return nil
+}
+
+// submitSuffix returns the PTY keystroke(s) needed to submit text.
+// Single-line: one Enter (\r) suffices.
+// Multi-line: the PTY's ICRNL converts \r→\n, and Claude Code's textarea
+// treats \n as newline-in-text once the input contains internal newlines.
+// A second \r (→\n) then lands on the empty trailing line and submits.
+func submitSuffix(text string) string {
+	if strings.Contains(text, "\n") {
+		return "\r\r"
+	}
+	return "\r"
 }

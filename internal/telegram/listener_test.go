@@ -114,6 +114,51 @@ func TestListen_MultipleChats(t *testing.T) {
 	awaitInject(t, injected, "[Telegram(chat_id=42)]: from chat 42\r")
 }
 
+func TestListen_TextMessageTrailingNewline(t *testing.T) {
+	bot := newFakeUpdater()
+	t.Cleanup(func() { close(bot.batches) })
+	injected := make(chan string, 1)
+
+	l := newTestListener(bot, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() { _ = l.Listen(ctx, func(s string) { injected <- s }) }()
+
+	bot.send(tgbotapi.Update{
+		Message: &tgbotapi.Message{
+			Chat: &tgbotapi.Chat{ID: testChatID},
+			Text: "hello world\n",
+		},
+	})
+
+	awaitInject(t, injected, "[Telegram(chat_id=42)]: hello world\r")
+}
+
+func TestListen_MultilineMessage(t *testing.T) {
+	bot := newFakeUpdater()
+	t.Cleanup(func() { close(bot.batches) })
+	injected := make(chan string, 1)
+
+	l := newTestListener(bot, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() { _ = l.Listen(ctx, func(s string) { injected <- s }) }()
+
+	bot.send(tgbotapi.Update{
+		Message: &tgbotapi.Message{
+			Chat: &tgbotapi.Chat{ID: testChatID},
+			Text: "line one\nline two\nline three",
+		},
+	})
+
+	// Multi-line input needs two Enter presses: the first \r lands on the last
+	// content line (adding a trailing newline), the second \r lands on the
+	// resulting empty line and submits.
+	awaitInject(t, injected, "[Telegram(chat_id=42)]: line one\nline two\nline three\r\r")
+}
+
 func TestListen_EmptyText(t *testing.T) {
 	bot := newFakeUpdater()
 	t.Cleanup(func() { close(bot.batches) })
