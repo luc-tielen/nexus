@@ -24,6 +24,8 @@ type Listener struct {
 	Bot          Updater
 	Transcribe   func(ctx context.Context, audioPath string) (string, error)
 	downloadFile func(ctx context.Context, url string) (path string, cleanup func(), err error)
+	// Notify, if set, is called immediately when a message arrives (before injection).
+	Notify func(chatID int64)
 }
 
 // killStalePluginPoller sends SIGTERM to the process recorded in the Claude
@@ -126,12 +128,18 @@ func (l *Listener) Listen(ctx context.Context, inject func(string)) error {
 }
 
 func (l *Listener) handleUpdate(ctx context.Context, msg *tgbotapi.Message, inject func(string)) error {
+	if l.Notify != nil {
+		l.Notify(msg.Chat.ID)
+	}
 	prefix := fmt.Sprintf("[Telegram(chat_id=%d)]: ", msg.Chat.ID)
 	if msg.Voice != nil {
 		return l.handleVoice(ctx, msg.Voice.FileID, prefix, inject)
 	}
 	if msg.Text != "" {
-		inject(prefix + msg.Text + "\r")
+		// Replace a trailing newline with \r so multi-line messages submit correctly
+		// while preserving interior newlines (shift-enter in Claude's input).
+		text := strings.TrimRight(msg.Text, "\n") + "\r"
+		inject(prefix + text)
 	}
 	return nil
 }
