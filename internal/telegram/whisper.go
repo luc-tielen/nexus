@@ -19,8 +19,7 @@ func transcribeWithWhisper(ctx context.Context, audioPath string) (string, error
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	cmd := exec.CommandContext(ctx, "whisper", audioPath,
-		"--model", "tiny",
-		"--output-format", "txt",
+		"--output_format", "txt",
 		"--output_dir", tmpDir,
 	)
 	if out, err := cmd.CombinedOutput(); err != nil {

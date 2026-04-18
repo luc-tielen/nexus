@@ -158,8 +158,9 @@ func (l *Listener) handleVoice(ctx context.Context, fileID, prefix string, injec
 		return fmt.Errorf("transcribing voice: %w", err)
 	}
 
-	if text = strings.TrimRight(text, "\r\n"); text != "" {
-		inject(prefix + text + submitSuffix(text))
+	text = strings.Join(strings.Fields(text), " ")
+	if text != "" {
+		inject(prefix + text + "\r")
 	}
 	return nil
 }

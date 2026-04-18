@@ -13,12 +13,12 @@ import (
 	"golang.org/x/term"
 )
 
-// Wrapper manages a PTY-wrapped child process.
+// Wrapper wraps a PTY subprocess and allows external callers to inject input.
 type Wrapper struct {
 	input chan []byte
 }
 
-// New creates a Wrapper ready to run a child process.
+// New creates a new Wrapper with a buffered input channel.
 func New() *Wrapper {
 	return &Wrapper{input: make(chan []byte, 8)}
 }

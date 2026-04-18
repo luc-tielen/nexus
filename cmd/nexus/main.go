@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/luc/nexus/internal/config"
 	"github.com/luc/nexus/internal/discord"
@@ -165,7 +167,17 @@ func main() {
 			}
 			go func() {
 				_ = tgListener.Listen(ctx, func(msg string) {
-					w.WriteInput([]byte(msg))
+					// Inject body and trailing \r(s) as separate PTY writes with
+					// a pause between them. This prevents Claude Code's paste-detection
+					// from absorbing Enter as part of the pasted content (which would
+					// add a literal newline instead of submitting the message).
+					body := strings.TrimRight(msg, "\r")
+					suffix := msg[len(body):]
+					if body != "" {
+						w.WriteInput([]byte(body))
+					}
+					time.Sleep(100 * time.Millisecond)
+					w.WriteInput([]byte(suffix))
 				})
 			}()
 		}
