@@ -22,7 +22,6 @@ type Updater interface {
 // Listener listens for incoming Telegram messages and injects them into the PTY.
 type Listener struct {
 	Bot          Updater
-	ChatID       int64
 	Transcribe   func(ctx context.Context, audioPath string) (string, error)
 	downloadFile func(ctx context.Context, url string) (path string, cleanup func(), err error)
 }
@@ -54,18 +53,12 @@ func killStalePluginPoller() {
 	time.Sleep(time.Second)
 }
 
-// NewListener creates a Listener for the given bot token and chat ID.
+// NewListener creates a Listener for the given bot token.
+// It accepts messages from all chats the bot is a member of.
 // It makes a network request to validate the token.
-func NewListener(token, chatID string) (*Listener, error) {
+func NewListener(token string) (*Listener, error) {
 	if token == "" {
 		return nil, fmt.Errorf("TELEGRAM_BOT_TOKEN is not set")
-	}
-	if chatID == "" {
-		return nil, fmt.Errorf("TELEGRAM_CHAT_ID is not set")
-	}
-	id, err := strconv.ParseInt(chatID, 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("TELEGRAM_CHAT_ID must be a numeric chat ID: %w", err)
 	}
 	killStalePluginPoller()
 	bot, err := tgbotapi.NewBotAPI(token)
@@ -74,7 +67,6 @@ func NewListener(token, chatID string) (*Listener, error) {
 	}
 	return &Listener{
 		Bot:          bot,
-		ChatID:       id,
 		Transcribe:   transcribeWithWhisper,
 		downloadFile: httpDownloadFile,
 	}, nil
@@ -125,7 +117,7 @@ func (l *Listener) Listen(ctx context.Context, inject func(string)) error {
 
 		for _, update := range res.updates {
 			cfg.Offset = update.UpdateID + 1
-			if update.Message == nil || update.Message.Chat.ID != l.ChatID {
+			if update.Message == nil {
 				continue
 			}
 			_ = l.handleUpdate(ctx, update.Message, inject)
@@ -134,16 +126,17 @@ func (l *Listener) Listen(ctx context.Context, inject func(string)) error {
 }
 
 func (l *Listener) handleUpdate(ctx context.Context, msg *tgbotapi.Message, inject func(string)) error {
+	prefix := fmt.Sprintf("[Telegram(chat_id=%d)]: ", msg.Chat.ID)
 	if msg.Voice != nil {
-		return l.handleVoice(ctx, msg.Voice.FileID, inject)
+		return l.handleVoice(ctx, msg.Voice.FileID, prefix, inject)
 	}
 	if msg.Text != "" {
-		inject("[Telegram]: " + msg.Text + "\r")
+		inject(prefix + msg.Text + "\r")
 	}
 	return nil
 }
 
-func (l *Listener) handleVoice(ctx context.Context, fileID string, inject func(string)) error {
+func (l *Listener) handleVoice(ctx context.Context, fileID, prefix string, inject func(string)) error {
 	url, err := l.Bot.GetFileDirectURL(fileID)
 	if err != nil {
 		return fmt.Errorf("getting voice file URL: %w", err)
@@ -161,7 +154,7 @@ func (l *Listener) handleVoice(ctx context.Context, fileID string, inject func(s
 	}
 
 	if text != "" {
-		inject("[Telegram]: " + text + "\r")
+		inject(prefix + text + "\r")
 	}
 	return nil
 }

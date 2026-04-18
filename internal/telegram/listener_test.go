@@ -56,7 +56,6 @@ func newTestListener(bot *fakeUpdater, transcribe func(context.Context, string) 
 	}
 	return &Listener{
 		Bot:          bot,
-		ChatID:       testChatID,
 		Transcribe:   transcribe,
 		downloadFile: fakeDownload,
 	}
@@ -92,13 +91,13 @@ func TestListen_TextMessage(t *testing.T) {
 		},
 	})
 
-	awaitInject(t, injected, "[Telegram]: hello world\r")
+	awaitInject(t, injected, "[Telegram(chat_id=42)]: hello world\r")
 }
 
-func TestListen_FiltersByChat(t *testing.T) {
+func TestListen_MultipleChats(t *testing.T) {
 	bot := newFakeUpdater()
 	t.Cleanup(func() { close(bot.batches) })
-	injected := make(chan string, 1)
+	injected := make(chan string, 2)
 
 	l := newTestListener(bot, nil)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -107,17 +106,12 @@ func TestListen_FiltersByChat(t *testing.T) {
 	go func() { _ = l.Listen(ctx, func(s string) { injected <- s }) }()
 
 	bot.send(
-		tgbotapi.Update{Message: &tgbotapi.Message{Chat: &tgbotapi.Chat{ID: 99}, Text: "wrong chat"}},
-		tgbotapi.Update{Message: &tgbotapi.Message{Chat: &tgbotapi.Chat{ID: testChatID}, Text: "right chat"}},
+		tgbotapi.Update{Message: &tgbotapi.Message{Chat: &tgbotapi.Chat{ID: 99}, Text: "from chat 99"}},
+		tgbotapi.Update{Message: &tgbotapi.Message{Chat: &tgbotapi.Chat{ID: testChatID}, Text: "from chat 42"}},
 	)
 
-	awaitInject(t, injected, "[Telegram]: right chat\r")
-
-	select {
-	case extra := <-injected:
-		t.Errorf("unexpected extra inject: %q", extra)
-	default:
-	}
+	awaitInject(t, injected, "[Telegram(chat_id=99)]: from chat 99\r")
+	awaitInject(t, injected, "[Telegram(chat_id=42)]: from chat 42\r")
 }
 
 func TestListen_EmptyText(t *testing.T) {
@@ -192,7 +186,7 @@ func TestListen_VoiceMessage(t *testing.T) {
 		},
 	})
 
-	awaitInject(t, injected, "[Telegram]: transcribed text\r")
+	awaitInject(t, injected, "[Telegram(chat_id=42)]: transcribed text\r")
 
 	if !transcribeCalled {
 		t.Error("expected Transcribe to be called")
@@ -229,26 +223,12 @@ func TestListen_VoiceEmptyTranscription(t *testing.T) {
 	}
 }
 
-func TestNewListener_Validation(t *testing.T) {
-	tests := []struct {
-		name    string
-		token   string
-		chatID  string
-		wantErr string
-	}{
-		{"missing token", "", "123", "TELEGRAM_BOT_TOKEN is not set"},
-		{"missing chat ID", "tok", "", "TELEGRAM_CHAT_ID is not set"},
-		{"non-numeric chat ID", "tok", "abc", "must be a numeric chat ID"},
+func TestNewListener_MissingToken(t *testing.T) {
+	_, err := NewListener("")
+	if err == nil {
+		t.Fatal("expected error, got nil")
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewListener(tt.token, tt.chatID)
-			if err == nil {
-				t.Fatal("expected error, got nil")
-			}
-			if !strings.Contains(err.Error(), tt.wantErr) {
-				t.Errorf("error %q does not contain %q", err.Error(), tt.wantErr)
-			}
-		})
+	if !strings.Contains(err.Error(), "TELEGRAM_BOT_TOKEN is not set") {
+		t.Errorf("unexpected error: %v", err)
 	}
 }

@@ -156,7 +156,7 @@ func main() {
 	defer shutdown()
 
 	if cfg.Channel == "telegram_nexus" {
-		if tgListener, err := telegram.NewListener(telegramToken, telegramChat); err == nil {
+		if tgListener, err := telegram.NewListener(telegramToken); err == nil {
 			go func() {
 				_ = tgListener.Listen(ctx, func(msg string) {
 					w.WriteInput([]byte(msg))

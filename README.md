@@ -157,9 +157,12 @@ Set `channel: telegram_nexus` to use Nexus's built-in Telegram listener instead 
 
 **Sending replies:**
 
-The listener injects incoming messages into Claude's terminal but does not handle replies automatically. Claude must send replies explicitly using the `send_telegram_message` MCP tool. Add the following to your global `~/.claude/CLAUDE.md` so Claude knows to do this:
+The listener accepts messages from all chats the bot is a member of and injects them as `[Telegram(chat_id=<id>)]: <message>`. Claude must reply explicitly using the `send_telegram_message` MCP tool, passing the `chat_id` from the prefix so the reply goes to the right chat.
+
+Add the following to your global `~/.claude/CLAUDE.md`:
 
 ```markdown
-Messages from Telegram are prefixed with `[Telegram]:`. Always reply to these
-using the `mcp__nexus__send_telegram_message` tool so the sender receives a response.
+Messages from Telegram are injected as `[Telegram(chat_id=<id>)]: <message>`.
+Always reply using the `mcp__nexus__send_telegram_message` tool with the
+`chat_id` from the prefix so the reply reaches the correct chat.
 ```

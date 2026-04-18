@@ -47,3 +47,9 @@ func (c *Client) Send(content string) error {
 	_, err := c.Bot.Send(tgbotapi.NewMessage(c.ChatID, content))
 	return err
 }
+
+// SendTo posts content to an arbitrary chat ID.
+func (c *Client) SendTo(chatID int64, content string) error {
+	_, err := c.Bot.Send(tgbotapi.NewMessage(chatID, content))
+	return err
+}
