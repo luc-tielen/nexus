@@ -160,6 +160,9 @@ func main() {
 
 	if cfg.Channel == "telegram_nexus" {
 		if tgListener, err := telegram.NewListener(telegramToken); err == nil {
+			if tgc != nil {
+				tgListener.Notify = func(chatID int64) { _ = tgc.SendTyping(chatID) }
+			}
 			go func() {
 				_ = tgListener.Listen(ctx, func(msg string) {
 					w.WriteInput([]byte(msg))

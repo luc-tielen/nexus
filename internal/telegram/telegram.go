@@ -47,3 +47,9 @@ func (c *Client) SendTo(chatID int64, content string) error {
 	_, err := c.Bot.Send(tgbotapi.NewMessage(chatID, content))
 	return err
 }
+
+// SendTyping sends a "typing" chat action to the given chat ID.
+func (c *Client) SendTyping(chatID int64) error {
+	_, err := c.Bot.Send(tgbotapi.NewChatAction(chatID, tgbotapi.ChatTyping))
+	return err
+}
