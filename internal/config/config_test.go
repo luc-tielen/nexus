@@ -40,6 +40,11 @@ func TestParse(t *testing.T) {
 			want:  Config{Channel: "telegram"},
 		},
 		{
+			name:  "channel telegram_nexus",
+			input: "channel: telegram_nexus\n",
+			want:  Config{Channel: "telegram_nexus"},
+		},
+		{
 			name:    "channel unsupported",
 			input:   "channel: discord\n",
 			wantErr: `channel: unsupported value "discord"`,
