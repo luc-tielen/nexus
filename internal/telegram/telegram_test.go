@@ -22,12 +22,12 @@ func (f *fakeTelegramSender) Send(c tgbotapi.Chattable) (tgbotapi.Message, error
 	return tgbotapi.Message{}, f.err
 }
 
-func TestClient_Send(t *testing.T) {
+func TestClient_SendTo(t *testing.T) {
 	fake := &fakeTelegramSender{}
-	c := &Client{Bot: fake, ChatID: 12345}
+	c := &Client{Bot: fake, ChatID: 1}
 
-	if err := c.Send("hello telegram"); err != nil {
-		t.Fatalf("Send: %v", err)
+	if err := c.SendTo(12345, "hello telegram"); err != nil {
+		t.Fatalf("SendTo: %v", err)
 	}
 	if fake.sentChatID != 12345 {
 		t.Errorf("chatID = %d, want %d", fake.sentChatID, 12345)
@@ -37,11 +37,11 @@ func TestClient_Send(t *testing.T) {
 	}
 }
 
-func TestClient_SendPropagatesError(t *testing.T) {
+func TestClient_SendToPropagatesError(t *testing.T) {
 	fake := &fakeTelegramSender{err: errors.New("forbidden")}
-	c := &Client{Bot: fake, ChatID: 12345}
+	c := &Client{Bot: fake, ChatID: 1}
 
-	if err := c.Send("hello"); err == nil {
+	if err := c.SendTo(12345, "hello"); err == nil {
 		t.Error("expected error, got nil")
 	}
 }

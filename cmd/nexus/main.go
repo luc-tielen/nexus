@@ -72,6 +72,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	releaseLock := acquireRunLock(dbDir)
+	defer releaseLock()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

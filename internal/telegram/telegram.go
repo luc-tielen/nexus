@@ -42,12 +42,6 @@ func NewClient(token, chatID string) (*Client, error) {
 	return &Client{Bot: bot, ChatID: id}, nil
 }
 
-// Send posts content to the configured Telegram chat.
-func (c *Client) Send(content string) error {
-	_, err := c.Bot.Send(tgbotapi.NewMessage(c.ChatID, content))
-	return err
-}
-
 // SendTo posts content to an arbitrary chat ID.
 func (c *Client) SendTo(chatID int64, content string) error {
 	_, err := c.Bot.Send(tgbotapi.NewMessage(chatID, content))
