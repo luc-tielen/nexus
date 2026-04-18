@@ -125,11 +125,11 @@ If `DISCORD_DEBUG_CHANNEL_ID` is configured, the full output of each cron run is
 Optional, non-sensitive settings live in `~/.config/nexus-ai/config.yaml`.
 
 ```yaml
-# Enable a communication channel. Supported values: telegram
+# Enable a communication channel. Supported values: telegram, telegram_nexus
 # The required Claude plugin args are added to the main interactive session only —
 # background subprocesses (cron jobs, run_in_project) do NOT get them, which
 # prevents multiple competing bot listeners from being spawned.
-channel: telegram
+channel: telegram_nexus
 
 # Extra arguments prepended to every claude invocation.
 claude_args:
@@ -139,6 +139,15 @@ claude_args:
 
 `claude_args` are prepended to every invocation, so `nexus --verbose` would run Claude with `--model claude-opus-4-6 --verbose`.
 
-### Telegram channel
+### Telegram channel (`telegram`)
 
-Set `channel: telegram` to connect the main Claude session to your Telegram bot. This automatically adds `--channels plugin:telegram@claude-plugins-official` to the interactive process. Make sure the `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` secrets are configured.
+Set `channel: telegram` to connect the main Claude session to your Telegram bot via the official Claude plugin. This automatically adds `--channels plugin:telegram@claude-plugins-official` to the interactive process. Make sure the `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` secrets are configured.
+
+### Telegram Nexus channel (`telegram_nexus`)
+
+Set `channel: telegram_nexus` to use Nexus's built-in Telegram listener instead of the Claude plugin. This listener:
+
+- Receives text messages and injects them directly into the active Claude session (equivalent to typing them at the terminal).
+- Receives voice messages, transcribes them locally using [Whisper](https://github.com/openai/whisper) (`whisper` must be on your `PATH`), and injects the transcription.
+
+No Claude plugin is loaded. Make sure the `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` secrets are configured.
