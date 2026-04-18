@@ -3,7 +3,11 @@ package telegram
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
+	"syscall"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -23,6 +27,33 @@ type Listener struct {
 	downloadFile func(ctx context.Context, url string) (path string, cleanup func(), err error)
 }
 
+// killStalePluginPoller sends SIGTERM to the process recorded in the Claude
+// Telegram plugin's PID file. An orphaned plugin server holds the getUpdates
+// slot indefinitely, causing 409 Conflicts for any new listener.
+func killStalePluginPoller() {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	data, err := os.ReadFile(filepath.Join(home, ".claude", "channels", "telegram", "bot.pid"))
+	if err != nil {
+		return
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil || pid <= 1 {
+		return
+	}
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return
+	}
+	if proc.Signal(syscall.Signal(0)) != nil {
+		return // process is already gone
+	}
+	_ = proc.Signal(syscall.SIGTERM)
+	time.Sleep(time.Second)
+}
+
 // NewListener creates a Listener for the given bot token and chat ID.
 // It makes a network request to validate the token.
 func NewListener(token, chatID string) (*Listener, error) {
@@ -36,6 +67,7 @@ func NewListener(token, chatID string) (*Listener, error) {
 	if err != nil {
 		return nil, fmt.Errorf("TELEGRAM_CHAT_ID must be a numeric chat ID: %w", err)
 	}
+	killStalePluginPoller()
 	bot, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
 		return nil, fmt.Errorf("creating Telegram listener bot: %w", err)
@@ -106,7 +138,7 @@ func (l *Listener) handleUpdate(ctx context.Context, msg *tgbotapi.Message, inje
 		return l.handleVoice(ctx, msg.Voice.FileID, inject)
 	}
 	if msg.Text != "" {
-		inject(msg.Text + "\r")
+		inject("[Telegram]: " + msg.Text + "\r")
 	}
 	return nil
 }
@@ -129,7 +161,7 @@ func (l *Listener) handleVoice(ctx context.Context, fileID string, inject func(s
 	}
 
 	if text != "" {
-		inject(text + "\r")
+		inject("[Telegram]: " + text + "\r")
 	}
 	return nil
 }

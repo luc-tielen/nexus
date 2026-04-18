@@ -150,4 +150,16 @@ Set `channel: telegram_nexus` to use Nexus's built-in Telegram listener instead 
 - Receives text messages and injects them directly into the active Claude session (equivalent to typing them at the terminal).
 - Receives voice messages, transcribes them locally using [Whisper](https://github.com/openai/whisper) (`whisper` must be on your `PATH`), and injects the transcription.
 
-No Claude plugin is loaded. Make sure the `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` secrets are configured.
+**Prerequisites:**
+
+1. Make sure the `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` secrets are configured.
+2. **Disable the Claude Telegram plugin** if you have it installed. The plugin runs its own bot server that competes for the same Telegram `getUpdates` slot, causing conflicts. Disable it in Claude Code's plugin settings.
+
+**Sending replies:**
+
+The listener injects incoming messages into Claude's terminal but does not handle replies automatically. Claude must send replies explicitly using the `send_telegram_message` MCP tool. Add the following to your global `~/.claude/CLAUDE.md` so Claude knows to do this:
+
+```markdown
+Messages from Telegram are prefixed with `[Telegram]:`. Always reply to these
+using the `mcp__nexus__send_telegram_message` tool so the sender receives a response.
+```

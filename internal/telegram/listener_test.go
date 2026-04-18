@@ -92,7 +92,7 @@ func TestListen_TextMessage(t *testing.T) {
 		},
 	})
 
-	awaitInject(t, injected, "hello world\r")
+	awaitInject(t, injected, "[Telegram]: hello world\r")
 }
 
 func TestListen_FiltersByChat(t *testing.T) {
@@ -111,7 +111,7 @@ func TestListen_FiltersByChat(t *testing.T) {
 		tgbotapi.Update{Message: &tgbotapi.Message{Chat: &tgbotapi.Chat{ID: testChatID}, Text: "right chat"}},
 	)
 
-	awaitInject(t, injected, "right chat\r")
+	awaitInject(t, injected, "[Telegram]: right chat\r")
 
 	select {
 	case extra := <-injected:
@@ -192,7 +192,7 @@ func TestListen_VoiceMessage(t *testing.T) {
 		},
 	})
 
-	awaitInject(t, injected, "transcribed text\r")
+	awaitInject(t, injected, "[Telegram]: transcribed text\r")
 
 	if !transcribeCalled {
 		t.Error("expected Transcribe to be called")
