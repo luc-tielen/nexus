@@ -268,6 +268,29 @@ func TestListen_VoiceEmptyTranscription(t *testing.T) {
 	}
 }
 
+func TestListen_MultiLineMessage(t *testing.T) {
+	bot := newFakeUpdater()
+	t.Cleanup(func() { close(bot.batches) })
+	injected := make(chan string, 1)
+
+	l := newTestListener(bot, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() { _ = l.Listen(ctx, func(s string) { injected <- s }) }()
+
+	// Interior newlines must be preserved (they become shift-enter in Claude's
+	// input). Only the trailing newline is replaced with \r so the message submits.
+	bot.send(tgbotapi.Update{
+		Message: &tgbotapi.Message{
+			Chat: &tgbotapi.Chat{ID: testChatID},
+			Text: "first line\nsecond line\n",
+		},
+	})
+
+	awaitInject(t, injected, "[Telegram(chat_id=42)]: first line\nsecond line\r\r")
+}
+
 func TestNewListener_MissingToken(t *testing.T) {
 	_, err := NewListener("")
 	if err == nil {
