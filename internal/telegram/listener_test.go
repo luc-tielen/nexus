@@ -11,24 +11,31 @@ import (
 )
 
 // fakeUpdater is a test double for Updater.
+// GetUpdates blocks until a batch is pushed via send() or the channel is closed.
 type fakeUpdater struct {
-	updates chan tgbotapi.Update
+	batches chan []tgbotapi.Update
 	fileURL string
 	fileErr error
 }
 
-func (f *fakeUpdater) GetUpdatesChan(_ tgbotapi.UpdateConfig) tgbotapi.UpdatesChannel {
-	return f.updates
+func newFakeUpdater() *fakeUpdater {
+	return &fakeUpdater{batches: make(chan []tgbotapi.Update, 8)}
+}
+
+func (f *fakeUpdater) GetUpdates(_ tgbotapi.UpdateConfig) ([]tgbotapi.Update, error) {
+	batch, ok := <-f.batches
+	if !ok {
+		return nil, nil
+	}
+	return batch, nil
 }
 
 func (f *fakeUpdater) GetFileDirectURL(_ string) (string, error) {
 	return f.fileURL, f.fileErr
 }
 
-func (f *fakeUpdater) StopReceivingUpdates() {}
-
-func newFakeUpdater() *fakeUpdater {
-	return &fakeUpdater{updates: make(chan tgbotapi.Update, 8)}
+func (f *fakeUpdater) send(updates ...tgbotapi.Update) {
+	f.batches <- updates
 }
 
 // fakeDownload writes a temp file and returns its path without making network calls.
@@ -69,6 +76,7 @@ func awaitInject(t *testing.T, ch <-chan string, want string) {
 
 func TestListen_TextMessage(t *testing.T) {
 	bot := newFakeUpdater()
+	t.Cleanup(func() { close(bot.batches) })
 	injected := make(chan string, 1)
 
 	l := newTestListener(bot, nil)
@@ -77,18 +85,19 @@ func TestListen_TextMessage(t *testing.T) {
 
 	go func() { _ = l.Listen(ctx, func(s string) { injected <- s }) }()
 
-	bot.updates <- tgbotapi.Update{
+	bot.send(tgbotapi.Update{
 		Message: &tgbotapi.Message{
 			Chat: &tgbotapi.Chat{ID: testChatID},
 			Text: "hello world",
 		},
-	}
+	})
 
 	awaitInject(t, injected, "hello world\r")
 }
 
 func TestListen_FiltersByChat(t *testing.T) {
 	bot := newFakeUpdater()
+	t.Cleanup(func() { close(bot.batches) })
 	injected := make(chan string, 1)
 
 	l := newTestListener(bot, nil)
@@ -97,18 +106,10 @@ func TestListen_FiltersByChat(t *testing.T) {
 
 	go func() { _ = l.Listen(ctx, func(s string) { injected <- s }) }()
 
-	bot.updates <- tgbotapi.Update{
-		Message: &tgbotapi.Message{
-			Chat: &tgbotapi.Chat{ID: 99},
-			Text: "wrong chat",
-		},
-	}
-	bot.updates <- tgbotapi.Update{
-		Message: &tgbotapi.Message{
-			Chat: &tgbotapi.Chat{ID: testChatID},
-			Text: "right chat",
-		},
-	}
+	bot.send(
+		tgbotapi.Update{Message: &tgbotapi.Message{Chat: &tgbotapi.Chat{ID: 99}, Text: "wrong chat"}},
+		tgbotapi.Update{Message: &tgbotapi.Message{Chat: &tgbotapi.Chat{ID: testChatID}, Text: "right chat"}},
+	)
 
 	awaitInject(t, injected, "right chat\r")
 
@@ -121,6 +122,7 @@ func TestListen_FiltersByChat(t *testing.T) {
 
 func TestListen_EmptyText(t *testing.T) {
 	bot := newFakeUpdater()
+	t.Cleanup(func() { close(bot.batches) })
 	injected := make(chan string, 1)
 
 	l := newTestListener(bot, nil)
@@ -129,12 +131,9 @@ func TestListen_EmptyText(t *testing.T) {
 
 	go func() { _ = l.Listen(ctx, func(s string) { injected <- s }) }()
 
-	bot.updates <- tgbotapi.Update{
-		Message: &tgbotapi.Message{
-			Chat: &tgbotapi.Chat{ID: testChatID},
-			Text: "",
-		},
-	}
+	bot.send(tgbotapi.Update{
+		Message: &tgbotapi.Message{Chat: &tgbotapi.Chat{ID: testChatID}, Text: ""},
+	})
 
 	select {
 	case s := <-injected:
@@ -146,6 +145,7 @@ func TestListen_EmptyText(t *testing.T) {
 
 func TestListen_ContextCancellation(t *testing.T) {
 	bot := newFakeUpdater()
+	t.Cleanup(func() { close(bot.batches) })
 
 	l := newTestListener(bot, nil)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -165,30 +165,9 @@ func TestListen_ContextCancellation(t *testing.T) {
 	}
 }
 
-func TestListen_UpdatesChannelClosed(t *testing.T) {
-	bot := newFakeUpdater()
-
-	l := newTestListener(bot, nil)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	done := make(chan error, 1)
-	go func() { done <- l.Listen(ctx, func(_ string) {}) }()
-
-	close(bot.updates)
-
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Errorf("expected nil on closed channel, got %v", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for listener to stop")
-	}
-}
-
 func TestListen_VoiceMessage(t *testing.T) {
 	bot := newFakeUpdater()
+	t.Cleanup(func() { close(bot.batches) })
 	bot.fileURL = "http://fake/voice.ogg"
 	injected := make(chan string, 1)
 
@@ -206,12 +185,12 @@ func TestListen_VoiceMessage(t *testing.T) {
 
 	go func() { _ = l.Listen(ctx, func(s string) { injected <- s }) }()
 
-	bot.updates <- tgbotapi.Update{
+	bot.send(tgbotapi.Update{
 		Message: &tgbotapi.Message{
 			Chat:  &tgbotapi.Chat{ID: testChatID},
 			Voice: &tgbotapi.Voice{FileID: "file123"},
 		},
-	}
+	})
 
 	awaitInject(t, injected, "transcribed text\r")
 
@@ -222,6 +201,7 @@ func TestListen_VoiceMessage(t *testing.T) {
 
 func TestListen_VoiceEmptyTranscription(t *testing.T) {
 	bot := newFakeUpdater()
+	t.Cleanup(func() { close(bot.batches) })
 	bot.fileURL = "http://fake/voice.ogg"
 	injected := make(chan string, 1)
 
@@ -234,12 +214,12 @@ func TestListen_VoiceEmptyTranscription(t *testing.T) {
 
 	go func() { _ = l.Listen(ctx, func(s string) { injected <- s }) }()
 
-	bot.updates <- tgbotapi.Update{
+	bot.send(tgbotapi.Update{
 		Message: &tgbotapi.Message{
 			Chat:  &tgbotapi.Chat{ID: testChatID},
 			Voice: &tgbotapi.Voice{FileID: "file123"},
 		},
-	}
+	})
 
 	select {
 	case s := <-injected:

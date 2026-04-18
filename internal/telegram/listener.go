@@ -4,15 +4,15 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // Updater is the subset of the Telegram bot API used for receiving updates.
 type Updater interface {
-	GetUpdatesChan(config tgbotapi.UpdateConfig) tgbotapi.UpdatesChannel
+	GetUpdates(config tgbotapi.UpdateConfig) ([]tgbotapi.Update, error)
 	GetFileDirectURL(fileID string) (string, error)
-	StopReceivingUpdates()
 }
 
 // Listener listens for incoming Telegram messages and injects them into the PTY.
@@ -50,25 +50,52 @@ func NewListener(token, chatID string) (*Listener, error) {
 
 // Listen blocks until ctx is cancelled, calling inject for each incoming message.
 // Voice messages are transcribed via Whisper before injection.
+// Errors are silently retried — never written to stdout/stderr to avoid
+// corrupting the PTY display.
 func (l *Listener) Listen(ctx context.Context, inject func(string)) error {
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 30
-	updates := l.Bot.GetUpdatesChan(u)
-	defer l.Bot.StopReceivingUpdates()
+	cfg := tgbotapi.NewUpdate(0)
+	cfg.Timeout = 1 // Short timeout so stale connections from a previous run expire in ~1s on restart
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case update, ok := <-updates:
-			if !ok {
-				return nil
+		default:
+		}
+
+		// Run GetUpdates in a goroutine so context cancellation is not blocked
+		// by a long-polling HTTP request.
+		type pollResult struct {
+			updates []tgbotapi.Update
+			err     error
+		}
+		ch := make(chan pollResult, 1)
+		go func() {
+			updates, err := l.Bot.GetUpdates(cfg)
+			ch <- pollResult{updates, err}
+		}()
+
+		var res pollResult
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case res = <-ch:
+		}
+
+		if res.err != nil {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(200 * time.Millisecond):
 			}
+			continue
+		}
+
+		for _, update := range res.updates {
+			cfg.Offset = update.UpdateID + 1
 			if update.Message == nil || update.Message.Chat.ID != l.ChatID {
 				continue
 			}
-			// Errors are silently dropped: the terminal is the foreground
-			// process and writing to stderr/stdout would corrupt the display.
 			_ = l.handleUpdate(ctx, update.Message, inject)
 		}
 	}
