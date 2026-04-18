@@ -155,6 +155,16 @@ func main() {
 	}
 	defer shutdown()
 
+	if cfg.Channel == "telegram_nexus" {
+		if tgListener, err := telegram.NewListener(telegramToken, telegramChat); err == nil {
+			go func() {
+				_ = tgListener.Listen(ctx, func(msg string) {
+					w.WriteInput([]byte(msg))
+				})
+			}()
+		}
+	}
+
 	if err := w.Run(ctx, claude, mainClaudeArgs, secretStore.Keys()); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			os.Exit(exitErr.ExitCode())
@@ -246,6 +256,9 @@ func channelArgs(channel string) []string {
 	switch channel {
 	case "telegram":
 		return []string{"--channels", "plugin:telegram@claude-plugins-official"}
+	case "telegram_nexus":
+		// Built-in listener; no Claude plugin needed.
+		return nil
 	default:
 		return nil
 	}

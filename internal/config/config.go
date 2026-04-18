@@ -19,7 +19,7 @@ type Config struct {
 	// Channel is an optional communication channel to enable.
 	// When set, the required Claude plugin args are added to the main
 	// interactive Claude process only — never to background subprocesses.
-	// Currently only "telegram" is supported.
+	// Supported values: "telegram" (uses Claude plugin), "telegram_nexus" (built-in listener).
 	Channel string `yaml:"channel"`
 }
 
@@ -60,10 +60,10 @@ func parse(raw []byte) (Config, error) {
 	}
 
 	switch cfg.Channel {
-	case "", "telegram":
+	case "", "telegram", "telegram_nexus":
 		// valid
 	default:
-		return Config{}, fmt.Errorf("channel: unsupported value %q (supported: telegram)", cfg.Channel)
+		return Config{}, fmt.Errorf("channel: unsupported value %q (supported: telegram, telegram_nexus)", cfg.Channel)
 	}
 
 	return cfg, nil
